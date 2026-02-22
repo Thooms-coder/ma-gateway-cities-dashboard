@@ -457,7 +457,12 @@ with st.container():
     primary_fips = selected_fips[primary_city]
 
     from src.queries import run_query
+    import pycountry
+    import numpy as np
 
+    # --------------------------------
+    # Get Latest Year
+    # --------------------------------
     year_query = """
         SELECT MAX(year) AS max_year
         FROM foreign_born_by_country
@@ -481,56 +486,73 @@ with st.container():
             )
             df_origins = df_origins.dropna(subset=["foreign_born"])
 
+            # Drop zero values
+            df_origins = df_origins[df_origins["foreign_born"] > 0]
+
             # Remove aggregates
             df_origins = df_origins[
                 ~df_origins["country_label"].str.contains(
-                    "Other|n.e.c|Stateless", case=False, na=False
+                    "Other|n.e.c|Stateless|excluding",
+                    case=False,
+                    na=False
                 )
             ]
 
-            # Remove parentheses
-            df_origins["country_label"] = (
+            # --------------------------------
+            # Extract Sovereign Country
+            # --------------------------------
+            # Take last segment after hierarchy
+            df_origins["country_clean"] = (
                 df_origins["country_label"]
-                .str.replace(r"\s*\(.*\)", "", regex=True)
+                .str.replace(r"\s*\(.*?\)", "", regex=True)  # remove parentheses
+                .str.split()
+                .str[-1]
+            )
+
+            # Special fix for multi-word countries
+            multi_word_fixes = {
+                "Kingdom": "United Kingdom",
+                "States": "United States",
+                "Republic": None,  # handled via lookup
+            }
+
+            # Better approach: use lookup on full string after removing region prefix
+            df_origins["country_candidate"] = (
+                df_origins["country_label"]
+                .str.replace(r"\s*\(.*?\)", "", regex=True)
+                .str.replace(
+                    r"^(Africa|Americas|Asia|Europe|Oceania)(.*?\s)",
+                    "",
+                    regex=True
+                )
                 .str.strip()
             )
 
-            # Fix common naming mismatches
-            country_fixes = {
-                "Congo (Democratic Republic)": "Democratic Republic of the Congo",
-                "Congo (Republic)": "Republic of the Congo",
-                "Korea": "South Korea",
-                "Burma": "Myanmar",
-                "Czech Republic": "Czechia",
-                "Russia": "Russian Federation",
-                "Iran": "Iran",
-                "Viet Nam": "Vietnam",
-                "Venezuela": "Venezuela"
-            }
-
-            df_origins["country_label"] = df_origins["country_label"].replace(country_fixes)
-
             # --------------------------------
-            # Filter to sovereign countries only
+            # Convert to ISO3 (robust matching)
             # --------------------------------
-            valid_countries = {c.name for c in pycountry.countries}
-            df_origins = df_origins[
-                df_origins["country_label"].isin(valid_countries)
-            ]
+            def to_iso3(name):
+                try:
+                    return pycountry.countries.lookup(name).alpha_3
+                except:
+                    return None
+
+            df_origins["iso3"] = df_origins["country_candidate"].apply(to_iso3)
+
+            df_origins = df_origins.dropna(subset=["iso3"])
 
             if df_origins.empty:
                 st.info(f"No mappable sovereign country data available for {primary_city}.")
             else:
 
                 # --------------------------------
-                # Base Choropleth
+                # Base Choropleth (ISO3)
                 # --------------------------------
                 fig_world = px.choropleth(
                     df_origins,
-                    locations="country_label",
-                    locationmode="country names",
+                    locations="iso3",
                     color="foreign_born",
-                    hover_name="country_label",
+                    hover_name="country_candidate",
                     color_continuous_scale="viridis",
                     projection="natural earth",
                     title=f"{primary_city} — Foreign-Born Population by Country ({latest_year})"
@@ -542,9 +564,8 @@ with st.container():
                 df_origins["marker_size"] = np.log1p(df_origins["foreign_born"]) * 4
 
                 bubble_trace = go.Scattergeo(
-                    locations=df_origins["country_label"],
-                    locationmode="country names",
-                    text=df_origins["country_label"],
+                    locations=df_origins["iso3"],
+                    text=df_origins["country_candidate"],
                     customdata=df_origins["foreign_born"],
                     marker=dict(
                         size=df_origins["marker_size"],
@@ -561,40 +582,11 @@ with st.container():
                 fig_world.add_trace(bubble_trace)
 
                 # --------------------------------
-                # Bubble Size Legend (Safe Scaling)
+                # Layout
                 # --------------------------------
-                max_val = df_origins["foreign_born"].max()
-
-                if pd.notna(max_val) and max_val > 0:
-
-                    legend_values = [
-                        int(max_val * 0.1),
-                        int(max_val * 0.4),
-                        int(max_val * 0.8)
-                    ]
-
-                    for val in legend_values:
-                        fig_world.add_trace(go.Scattergeo(
-                            lon=[None],
-                            lat=[None],
-                            marker=dict(
-                                size=np.log1p(val) * 4,
-                                color="rgba(255,255,255,0.75)",
-                                line=dict(width=1, color="black")
-                            ),
-                            name=f"{val:,}",
-                            showlegend=True
-                        ))
-
                 fig_world.update_layout(
                     margin=dict(l=0, r=0, t=40, b=0),
                     height=650,
-                    legend=dict(
-                        title="Bubble Size (Foreign-Born Count)",
-                        orientation="h",
-                        yanchor="bottom",
-                        y=-0.15
-                    ),
                     coloraxis_colorbar=dict(title="Population"),
                     hoverlabel=dict(
                         bgcolor="#ffffff",
