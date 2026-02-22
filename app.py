@@ -30,25 +30,27 @@ st.set_page_config(
 )
 
 # --------------------------------------------------
-# Advanced CSS Injector (Animations & Theming)
+# Load Custom CSS (Restored to prioritize your theme)
 # --------------------------------------------------
 
 def load_css():
+    # 1. Load your established theme first
+    try:
+        with open("assets/styles.css") as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+    except FileNotFoundError:
+        pass
+        
+    # 2. Inject strictly the layout/animation classes for the scroll narrative
     st.markdown("""
     <style>
-    /* Global Typography & Background */
-    body, .stApp {
-        background-color: #f8f9fa;
-        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    }
-    
     /* Smooth Fade & Rise Animation */
     @keyframes fadeInRise {
         0% { opacity: 0; transform: translateY(20px); }
         100% { opacity: 1; transform: translateY(0); }
     }
     
-    /* Narrative Section Cards */
+    /* Narrative Section Cards (Inherits your fonts and base styles) */
     .section-card {
         animation: fadeInRise 0.8s ease-out forwards;
         background: #ffffff;
@@ -59,65 +61,16 @@ def load_css():
         margin-bottom: 40px;
     }
     
-    /* Staggered load delays for a cascading effect */
+    /* Staggered load delays for cascading effect */
     .delay-1 { animation-delay: 0.1s; }
     .delay-2 { animation-delay: 0.3s; }
     .delay-3 { animation-delay: 0.5s; }
     .delay-4 { animation-delay: 0.7s; }
 
-    /* Headers */
-    .hero-title {
-        font-size: 2.5rem;
-        font-weight: 700;
-        color: #111;
-        margin-bottom: 5px;
-        letter-spacing: -0.5px;
-    }
-    .hero-subtitle {
-        font-size: 1.1rem;
-        color: #555;
-        margin-bottom: 30px;
-        border-bottom: 1px solid #ddd;
-        padding-bottom: 20px;
-    }
-    .section-header {
-        font-size: 1.5rem;
-        font-weight: 600;
-        color: #111;
-        margin-bottom: 20px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-
-    /* KPI & Lede Elements */
-    .kpi-container { 
-        background: #ffffff; 
-        padding: 20px; 
-        border-radius: 4px; 
-        border: 1px solid #eee;
-        border-left: 4px solid #111; 
-        margin-bottom: 15px; 
-    }
-    .kpi-label { font-size: 0.85rem; color: #777; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; }
-    .kpi-value { font-size: 2rem; font-weight: 700; color: #111; line-height: 1.2; }
-    
-    .lede-box {
-        background: #f4f4f4; 
-        padding: 25px; 
-        border-left: 4px solid #8b0000; 
-        height: 100%; 
-        font-size: 1.1rem; 
-        line-height: 1.6;
-        color: #333;
-    }
-
-    /* Map Legend */
-    .map-legend { display: flex; gap: 25px; justify-content: center; padding: 15px 0; font-size: 0.9rem; color: #555; }
+    /* Clean Map Legend */
+    .map-legend { display: flex; gap: 25px; justify-content: center; padding: 15px 0; font-size: 0.9rem; }
     .legend-item { display: flex; align-items: center; gap: 8px; }
     .dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; }
-    
-    /* Overriding Streamlit defaults */
-    .stSelectbox label { font-weight: 600; color: #111; text-transform: uppercase; font-size: 0.9rem;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -180,16 +133,25 @@ if "selected_city" not in st.session_state:
     st.session_state.selected_city = city_options[0]
 
 # --------------------------------------------------
-# Header & Control View
+# Header & Control View (Restored original markup classes)
 # --------------------------------------------------
 
-st.markdown('<div class="hero-title">Gateway Cities Investigative Dashboard</div>', unsafe_allow_html=True)
-st.markdown('<div class="hero-subtitle">A longitudinal analysis of immigration patterns, demographic transitions, and structural economic shifts across Massachusetts municipalities. (Source: ACS 2010-2024)</div>', unsafe_allow_html=True)
+st.markdown("""
+<div class="hero">
+    <h1>Gateway Cities Investigative Dashboard</h1>
+    <div class="accent-line"></div>
+    <p>
+    A longitudinal analysis of immigration patterns, demographic transitions, 
+    and structural economic shifts across Massachusetts municipalities. (Source: ACS 2010-2024)
+    </p>
+</div>
+""", unsafe_allow_html=True)
 
-# Main selector
+st.markdown("### Search Target Municipality")
 selected_city = st.selectbox(
-    "SEARCH TARGET MUNICIPALITY",
+    "Target Municipality",
     options=city_options,
+    label_visibility="collapsed",
     key="selected_city" 
 )
 
@@ -209,10 +171,10 @@ df_struct = df_fb.merge(df_income, on="year", how="outer").merge(df_poverty, on=
 df_struct = df_struct.interpolate(method="linear", limit_direction="both").dropna()
 
 # ==================================================
-# SECTION 1: GEOGRAPHIC CONTEXT (No Tabs, Scroll Layout)
+# SECTION 1: GEOGRAPHIC CONTEXT
 # ==================================================
 st.markdown('<div class="section-card delay-1">', unsafe_allow_html=True)
-st.markdown('<div class="section-header">Geographic Overview</div>', unsafe_allow_html=True)
+st.markdown("#### Geographic Overview")
 
 @st.cache_data
 def build_map(geojson, locations, gw_names, selected_norm, c_lat, c_lon):
@@ -273,7 +235,7 @@ if len(df_fb) > 0:
     with col_lede:
         trend_word = "surged" if growth > 10 else "grown" if growth > 0 else "declined"
         st.markdown(f"""
-        <div class="lede-box">
+        <div style="background:#f4f4f4; padding:25px; border-left:4px solid #8b0000; height: 100%; font-size:1.05rem; line-height: 1.6;">
         <strong>Investigative Briefing:</strong> Over the observed period, the foreign-born population in {st.session_state.selected_city} has {trend_word} by {abs(growth):.1f}%, now representing {latest_percent:.1f}% of the total community. This sets the demographic baseline for cross-referencing against municipal economic indicators below.
         </div>
         """, unsafe_allow_html=True)
@@ -284,13 +246,13 @@ st.markdown('</div>', unsafe_allow_html=True)
 # SECTION 2: ECONOMIC INDICATORS
 # ==================================================
 st.markdown('<div class="section-card delay-2">', unsafe_allow_html=True)
-st.markdown('<div class="section-header">Economic Health & Poverty Status</div>', unsafe_allow_html=True)
-st.markdown("<p style='color: #555;'>Analyzing ACS Tables S1901 (Income) and S1701 (Poverty).</p>", unsafe_allow_html=True)
+st.markdown("#### Economic Health & Poverty Status")
+st.markdown("Analyzing ACS Tables S1901 (Income) and S1701 (Poverty).")
 
 col_ts1, col_ts2 = st.columns(2)
 with col_ts1:
     fig_inc = px.line(df_struct, x="year", y="median_income", title="Median Household Income Trajectory ($)")
-    fig_inc.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20), line_color="#111")
+    fig_inc.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20), line_color="#111111")
     st.plotly_chart(fig_inc, use_container_width=True)
 
 with col_ts2:
@@ -301,15 +263,15 @@ with col_ts2:
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ==================================================
-# SECTION 3: HOUSING & TRANSPORT (Mocked for Now)
+# SECTION 3: HOUSING & TRANSPORT
 # ==================================================
 st.markdown('<div class="section-card delay-3">', unsafe_allow_html=True)
-st.markdown('<div class="section-header">Housing Burden</div>', unsafe_allow_html=True)
-st.markdown("<p style='color: #555;'>Analyzing ACS Table B25070 (Rent Burden).</p>", unsafe_allow_html=True)
+st.markdown("#### Housing Burden")
+st.markdown("Analyzing ACS Table B25070 (Rent Burden).")
 
 df_housing_mock = get_housing_burden(place_fips)
 fig_house = px.bar(df_housing_mock, x="year", y="rent_burden_percent", title="Rent as Percentage of Income")
-fig_house.update_traces(marker_color='#555')
+fig_house.update_traces(marker_color='#111111')
 fig_house.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20))
 st.plotly_chart(fig_house, use_container_width=True)
 
@@ -319,15 +281,15 @@ st.markdown('</div>', unsafe_allow_html=True)
 # SECTION 4: MULTIDIMENSIONAL ANALYSIS
 # ==================================================
 st.markdown('<div class="section-card delay-4">', unsafe_allow_html=True)
-st.markdown('<div class="section-header">Multidimensional Outlier Detection</div>', unsafe_allow_html=True)
-st.markdown("<p style='color: #555;'>Tracing the longitudinal relationship between immigration scale, median income, and poverty rate to identify systemic divergence.</p>", unsafe_allow_html=True)
+st.markdown("#### Multidimensional Outlier Detection")
+st.markdown("Tracing the longitudinal relationship between immigration scale, median income, and poverty rate to identify systemic divergence.")
 
 if len(df_struct) > 1:
     fig_par = go.Figure(data=
         go.Parcoords(
             line=dict(
                 color=df_struct['year'], 
-                colorscale=[[0, '#e5e5e5'], [1, '#8b0000']], # Thematic colorscale
+                colorscale=[[0, '#e5e5e5'], [1, '#8b0000']], 
                 showscale=True,
                 cmin=df_struct['year'].min(),
                 cmax=df_struct['year'].max()
@@ -342,8 +304,7 @@ if len(df_struct) > 1:
     )
     fig_par.update_layout(
         margin=dict(l=40, r=40, t=40, b=20), 
-        height=450,
-        font=dict(family="Helvetica Neue", color="#111")
+        height=450
     )
     st.plotly_chart(fig_par, use_container_width=True)
 
@@ -353,9 +314,9 @@ st.markdown('</div>', unsafe_allow_html=True)
 # SECTION 5: METHODOLOGY
 # ==================================================
 st.markdown('<div class="section-card delay-4" style="background: #fdfdfd; border-top: 1px solid #ddd;">', unsafe_allow_html=True)
-st.markdown('<div class="section-header" style="font-size: 1.2rem;">Data Responsibility & Methodology</div>', unsafe_allow_html=True)
+st.markdown("#### Data Responsibility & Methodology")
 st.markdown("""
-<div style="color: #666; font-size: 0.95rem; line-height: 1.6;">
+<div style="font-size: 0.95rem; line-height: 1.6;">
 <strong>1. Transparency & Accuracy:</strong> All figures are derived directly from the U.S. Census American Community Survey (ACS) 5-Year Estimates. Margins of error (MOE) are preserved in the backend to prevent over-indexing on marginal statistical shifts.<br><br>
 <strong>2. Journalistic Framing:</strong> This platform avoids causal claims without rigorous statistical testing. Correlation visualized across demographic and economic panels is intended to surface trends for localized reporting, rather than draw definitive conclusions on causality.<br><br>
 <strong>3. Limitations:</strong> ACS 5-year estimates smooth out short-term volatility. Data represented here should be cross-referenced with local municipal records where applicable.
