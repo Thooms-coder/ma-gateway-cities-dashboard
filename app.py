@@ -201,6 +201,10 @@ def build_base_map(geojson, locations, center_lat, center_lon):
 
 base_fig = build_base_map(ma_geo, locations, center_lat, center_lon)
 
+# --------------------------------------------------
+# Apply Dynamic Highlighting
+# --------------------------------------------------
+
 z_values = []
 for town_name in locations:
     town_norm = normalize(town_name)
