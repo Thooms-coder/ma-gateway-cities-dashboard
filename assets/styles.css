@@ -106,6 +106,8 @@ html, body {
 
 .fullscreen-map .js-plotly-plot,
 .fullscreen-map .plotly,
-.fullscreen-map div {
-    height: 85vh !important;
+.fullscreen-map {
+    height: 92vh;
+    display: flex;
+    align-items: stretch;
 }
