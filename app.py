@@ -258,6 +258,9 @@ with st.container():
         for i, town_name in enumerate(locations):
             town_norm = normalize(town_name)
 
+            # right before the if town_norm in town_fips_map:
+            st.write("clicked_town:", clicked_town, "town_norm:", town_norm, "in_map:", town_norm in town_fips_map)
+
             # Match by FIPS (correct, reliable match)
             if town_norm in town_fips_map_local and town_fips_map_local[town_norm] == place_fips:
                 z_values.append(2)
