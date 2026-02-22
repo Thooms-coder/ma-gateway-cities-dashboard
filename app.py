@@ -177,6 +177,34 @@ fig_map = go.Figure(go.Choroplethmapbox(
     hovertemplate="<b>%{location}</b><extra></extra>"
 ))
 
+# --------------------------------------------------
+# Manual Legend
+# --------------------------------------------------
+
+fig_map.add_trace(go.Scattermapbox(
+    lat=[None],
+    lon=[None],
+    mode="markers",
+    marker=dict(size=12, color="#111111"),
+    name="Selected City"
+))
+
+fig_map.add_trace(go.Scattermapbox(
+    lat=[None],
+    lon=[None],
+    mode="markers",
+    marker=dict(size=12, color="#E10600"),
+    name="Gateway City"
+))
+
+fig_map.add_trace(go.Scattermapbox(
+    lat=[None],
+    lon=[None],
+    mode="markers",
+    marker=dict(size=12, color="#e5e5e5"),
+    name="Other Municipality"
+))
+
 fig_map.update_layout(
     mapbox=dict(
         style="white-bg",
@@ -185,6 +213,16 @@ fig_map.update_layout(
     ),
     margin=dict(l=0, r=0, t=0, b=0),
     height=1050,
+    legend=dict(
+        orientation="h",
+        yanchor="bottom",
+        y=0.01,
+        xanchor="center",
+        x=0.5,
+        bgcolor="rgba(255,255,255,0.85)",
+        bordercolor="#dddddd",
+        borderwidth=1
+    )
 )
 
 st.plotly_chart(fig_map, use_container_width=True)
