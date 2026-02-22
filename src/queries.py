@@ -8,6 +8,17 @@ from src.db import engine
 
 def run_query(query, params=None):
     """Executes a SQL query and returns a pandas DataFrame."""
+    
+    # Convert numpy scalars to native Python types
+    if params:
+        normalized = {}
+        for k, v in params.items():
+            if hasattr(v, "item"):   # catches numpy.int64, numpy.float64, etc.
+                normalized[k] = v.item()
+            else:
+                normalized[k] = v
+        params = normalized
+
     with engine.connect() as conn:
         return pd.read_sql(text(query), conn, params=params)
 
