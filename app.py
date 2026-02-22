@@ -151,15 +151,11 @@ fig_map = go.Figure(go.Choroplethmapbox(
 fig_map.update_layout(
     mapbox=dict(
         style="white-bg",
-        bounds=dict(
-            west=min_lon,
-            east=max_lon,
-            south=min_lat,
-            north=max_lat,
-        ),
+        center=dict(lat=center_lat, lon=center_lon),
+        zoom=7.5,   # adjust slightly if needed
     ),
     margin=dict(l=0, r=0, t=0, b=0),
-    height=1200
+    height=1050,
 )
 
 st.plotly_chart(fig_map, use_container_width=True)
