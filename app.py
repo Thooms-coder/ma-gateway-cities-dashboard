@@ -485,8 +485,6 @@ with st.container():
                 df_origins["foreign_born"], errors="coerce"
             )
             df_origins = df_origins.dropna(subset=["foreign_born"])
-
-            # Drop zero values
             df_origins = df_origins[df_origins["foreign_born"] > 0]
 
             # Remove aggregate rows
@@ -499,22 +497,31 @@ with st.container():
             ]
 
             # --------------------------------
-            # Extract sovereign country name
+            # Extract sovereign country via progressive lookup
             # --------------------------------
+            import pycountry
 
-            # Remove region prefix
-            df_origins["country_candidate"] = (
+            def extract_country(label):
+                label = label.replace("(", "").replace(")", "")
+                parts = label.split()
+
+                # Try progressively longer matches from right side
+                for i in range(len(parts)):
+                    candidate = " ".join(parts[i:])
+                    try:
+                        match = pycountry.countries.lookup(candidate)
+                        return match.alpha_3, match.name
+                    except:
+                        continue
+
+                return None, None
+
+            df_origins[["iso3", "country_clean"]] = (
                 df_origins["country_label"]
-                .str.replace(r"^(Africa|Americas|Asia|Europe|Oceania)\s+", "", regex=True)
-                .str.replace(r"\s*\(.*?\)", "", regex=True)  # remove parentheses
-                .str.strip()
+                .apply(lambda x: pd.Series(extract_country(x)))
             )
 
-            # Drop known sub-national rows
-            subnational = ["England", "Scotland", "Wales"]
-            df_origins = df_origins[
-                ~df_origins["country_candidate"].isin(subnational)
-            ]
+            df_origins = df_origins.dropna(subset=["iso3"])
 
             # --------------------------------
             # Convert to ISO3
