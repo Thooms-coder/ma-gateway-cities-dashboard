@@ -200,6 +200,15 @@ st.markdown("""
 
 col_search, col_export = st.columns([3, 1])
 with col_search:
+    st.markdown("""
+**Explore Gateway Cities**  
+
+Select a Gateway City to observe Foreign-Born Populations trends. 
+
+Selecting more than one Gateway City allows you to compare their demographic and economic trends side by side below. 
+
+    """)
+    
     available_options = sorted(
         set(city_options + st.session_state.get("selected_cities", []))
     )
