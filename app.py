@@ -77,27 +77,6 @@ def load_css():
 
 load_css()
 
-components.html("""
-<script>
-function initObserver() {
-    const sections = parent.document.querySelectorAll('.fade-section');
-
-    const observer = new IntersectionObserver(entries => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('visible');
-            }
-        });
-    }, { threshold: 0.15 });
-
-    sections.forEach(section => observer.observe(section));
-}
-
-// Wait a moment for Streamlit to render DOM
-setTimeout(initObserver, 500);
-</script>
-""", height=0)
-
 # --------------------------------------------------
 # Load & Process Geo Data
 # --------------------------------------------------
@@ -217,7 +196,6 @@ with col_export:
 # SECTION 1: GEOGRAPHIC CONTEXT
 # ==================================================
 with st.container():
-    st.markdown('<div class="fade-section">', unsafe_allow_html=True)
     st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
     st.markdown("### Geographic Context")
 
@@ -313,14 +291,11 @@ with st.container():
             Over the observed period, the foreign-born population in <b>{st.session_state.selected_city}</b> has {trend_word} by {abs(growth):.1f}%, now representing {latest_percent:.1f}% of the total community. This demographic shift provides the foundation for examining localized economic transitions, housing pressures, and wealth distribution.
             </div>
             """, unsafe_allow_html=True)
-
-    st.markdown('</div>', unsafe_allow_html=True)
     
 # ==================================================
 # SECTION 2: DEMOGRAPHIC ORIGINS
 # ==================================================
 with st.container():
-    st.markdown('<div class="fade-section">', unsafe_allow_html=True)
     st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
     st.markdown("### Demographic Origins")
 
@@ -347,14 +322,11 @@ with st.container():
         st.plotly_chart(fig_origins, use_container_width=True)
     else:
         st.info("Country of origin breakdown currently unavailable for this municipality.")
-
-    st.markdown('</div>', unsafe_allow_html=True)
     
 # ==================================================
 # SECTION 3: ECONOMIC INDICATORS
 # ==================================================
 with st.container():
-    st.markdown('<div class="fade-section">', unsafe_allow_html=True)
     st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
     st.markdown("### Economic Health & Poverty Status")
 
@@ -374,12 +346,10 @@ with st.container():
             fig_pov.update_traces(line_color=COLOR_BASE, line_width=3)
             st.plotly_chart(fig_pov, use_container_width=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)
 # ==================================================
 # SECTION 4: TRAJECTORY ANALYSIS
 # ==================================================
 with st.container():
-    st.markdown('<div class="fade-section">', unsafe_allow_html=True)
     st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
     st.markdown("### Structural Trajectory: Income vs. Immigration")
     st.markdown("<p style='color: #586069; font-size: 0.95rem;'>This connected scatterplot traces the municipality's economic and demographic movement year-over-year. A consistent upward and rightward trajectory indicates simultaneous growth in median income and foreign-born population.</p>", unsafe_allow_html=True)
@@ -417,14 +387,11 @@ with st.container():
             height=500
         )
         st.plotly_chart(fig_traj, use_container_width=True)
-
-    st.markdown('</div>', unsafe_allow_html=True)
     
 # ==================================================
 # SECTION 5: METHODOLOGY
 # ==================================================
 with st.container():
-    st.markdown('<div class="fade-section">', unsafe_allow_html=True)
     st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
     st.markdown("#### Data Responsibility & Methodology")
     st.markdown("""
@@ -434,4 +401,3 @@ with st.container():
     <strong>3. Limitations:</strong> ACS 5-year estimates smooth out short-term volatility. Data represented here should be cross-referenced with local municipal records where applicable.
     </div>
     """, unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)

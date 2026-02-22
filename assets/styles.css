@@ -136,3 +136,22 @@ h1, h2, h3, h4, h5 {
     opacity: 1;
     transform: translateY(0);
 }
+
+/* ----------------------------------
+   Render Fade (Stable in Streamlit)
+----------------------------------- */
+
+div[data-testid="stVerticalBlock"] {
+    animation: fadeInUp 0.8s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(25px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
