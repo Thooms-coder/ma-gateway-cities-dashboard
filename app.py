@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import plotly.express as px
 import plotly.graph_objects as go
 import json
@@ -75,6 +76,24 @@ def load_css():
     """, unsafe_allow_html=True)
 
 load_css()
+
+components.html("""
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const observer = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add("visible");
+            }
+        });
+    }, { threshold: 0.15 });
+
+    document.querySelectorAll(".fade-section").forEach(section => {
+        observer.observe(section);
+    });
+});
+</script>
+""", height=0)
 
 # --------------------------------------------------
 # Load & Process Geo Data
@@ -195,6 +214,7 @@ with col_export:
 # SECTION 1: GEOGRAPHIC CONTEXT
 # ==================================================
 with st.container():
+    st.markdown('<div class="fade-section">', unsafe_allow_html=True)
     st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
     st.markdown("### Geographic Context")
 
@@ -295,6 +315,7 @@ with st.container():
 # SECTION 2: DEMOGRAPHIC ORIGINS
 # ==================================================
 with st.container():
+    st.markdown('<div class="fade-section">', unsafe_allow_html=True)
     st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
     st.markdown("### Demographic Origins")
 
@@ -326,6 +347,7 @@ with st.container():
 # SECTION 3: ECONOMIC INDICATORS
 # ==================================================
 with st.container():
+    st.markdown('<div class="fade-section">', unsafe_allow_html=True)
     st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
     st.markdown("### Economic Health & Poverty Status")
 
@@ -349,6 +371,7 @@ with st.container():
 # SECTION 4: TRAJECTORY ANALYSIS
 # ==================================================
 with st.container():
+    st.markdown('<div class="fade-section">', unsafe_allow_html=True)
     st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
     st.markdown("### Structural Trajectory: Income vs. Immigration")
     st.markdown("<p style='color: #586069; font-size: 0.95rem;'>This connected scatterplot traces the municipality's economic and demographic movement year-over-year. A consistent upward and rightward trajectory indicates simultaneous growth in median income and foreign-born population.</p>", unsafe_allow_html=True)
@@ -391,6 +414,7 @@ with st.container():
 # SECTION 5: METHODOLOGY
 # ==================================================
 with st.container():
+    st.markdown('<div class="fade-section">', unsafe_allow_html=True)
     st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
     st.markdown("#### Data Responsibility & Methodology")
     st.markdown("""
