@@ -103,7 +103,13 @@ cities = get_cities(gateway_only=False)
 gateway_cities = get_cities(gateway_only=True)
 
 gateway_names = set(
-    normalize(n.replace(" city", "").replace(" City", ""))
+    normalize(
+        n.replace(" city", "")
+         .replace(" City", "")
+         .replace(" town", "")
+         .replace(" Town", "")
+         .strip()
+    )
     for n in gateway_cities["place_name"]
 )
 
