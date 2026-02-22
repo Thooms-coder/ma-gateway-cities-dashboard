@@ -27,6 +27,7 @@ COLOR_TARGET = "#005ab5"
 COLOR_BASE = "#dc3220"
 COLOR_BG_LIGHT = "#f4f5f6"
 COLOR_TEXT = "#2c2f33"
+COLOR_BOSTON = "#009E73"  # Colorblind-safe bluish green
 
 # --------------------------------------------------
 # Page Config
@@ -140,6 +141,11 @@ allowed_cities_df = pd.concat([
 ]).drop_duplicates()
 
 allowed_fips = set(allowed_cities_df["place_fips"])
+
+boston_cambridge_names = set(
+    normalize(clean_place_label(name))
+    for name in extra_cities["place_name"]
+)
 
 # Ensure consistent type for lookup + query params
 if "place_fips" in cities.columns:
@@ -268,12 +274,11 @@ with st.container():
     st.markdown("### Geographic Context")
 
     @st.cache_data
-    def build_map(geojson, locations, allowed_names, town_fips_map_local, place_fips, c_lat, c_lon):
+    def build_map(geojson, locations, allowed_names, town_fips_map_local,
+                place_fips, c_lat, c_lon, boston_cambridge_names):
 
         z_values = []
         selected_index = None
-        line_widths = []
-        line_colors = []
 
         for i, town_name in enumerate(locations):
             town_norm = normalize(town_name)
@@ -283,22 +288,20 @@ with st.container():
                 town_norm in town_fips_map_local and
                 town_fips_map_local[town_norm] == place_fips
             ):
-                z_values.append(2)
+                z_values.append(3)
                 selected_index = i
-                line_widths.append(3)
-                line_colors.append("#1f2933")
 
-            # Allowed comparison cities (Gateway + Boston + Cambridge)
+            # Boston & Cambridge
+            elif town_norm in boston_cambridge_names:
+                z_values.append(2)
+
+            # Gateway cities
             elif town_norm in allowed_names:
                 z_values.append(1)
-                line_widths.append(3)
-                line_colors.append("#1f2933")
 
             # All other municipalities
             else:
                 z_values.append(0)
-                line_widths.append(0.8)
-                line_colors.append("rgba(60,65,75,0.4)")
 
         trace = go.Choroplethmapbox(
             geojson=geojson,
@@ -306,25 +309,24 @@ with st.container():
             z=z_values,
             featureidkey="properties.TOWN",
             colorscale=[
-                [0.0, "#e9ecef"],
-                [0.499, "#e9ecef"],
+                [0.0, "#E9ECEF"],
+                [0.25, "#E9ECEF"],
+                [0.25, COLOR_BASE],
                 [0.5, COLOR_BASE],
-                [0.999, COLOR_BASE],
+                [0.5, COLOR_BOSTON],
+                [0.75, COLOR_BOSTON],
+                [0.75, COLOR_TARGET],
                 [1.0, COLOR_TARGET]
             ],
             zmin=0,
-            zmax=2,
+            zmax=3,
             showscale=False,
-            marker=dict(
-                line=dict(
-                    width=line_widths,
-                    color=line_colors
-                )
-            ),
+            marker_line_width=1.0,
+            marker_line_color="rgba(60,65,75,0.5)",
             hovertemplate="<b>%{location}</b><extra></extra>",
             selectedpoints=[selected_index] if selected_index is not None else None,
             selected=dict(marker=dict(opacity=1)),
-            unselected=dict(marker=dict(opacity=0.75))
+            unselected=dict(marker=dict(opacity=0.8))
         )
 
         fig = go.Figure(trace)
@@ -349,8 +351,10 @@ with st.container():
         town_fips_map,
         primary_fips,
         center_lat,
-        center_lon
+        center_lon,
+        boston_cambridge_names
     )
+    
     map_event = st.plotly_chart(fig_map, use_container_width=True, on_select="rerun", key="map_select")
 
     st.markdown(f"""
