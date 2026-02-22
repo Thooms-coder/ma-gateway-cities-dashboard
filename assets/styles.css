@@ -94,12 +94,9 @@ html, body {
 }
 
 .block-container {
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-    padding-left: 2.5rem !important;
-    padding-right: 2.5rem !important;
-    max-width: 1400px;
-    margin: 0 auto;
+    padding: 0rem !important;
+    margin: 1rem !important;
+    max-width: 100% !important;
 }
 
 .fullscreen-map {
