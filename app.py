@@ -26,8 +26,11 @@ st.set_page_config(
 # --------------------------------------------------
 
 def load_css():
-    with open("assets/styles.css") as f:
-        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+    try:
+        with open("assets/styles.css") as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+    except FileNotFoundError:
+        pass # Failsafe in case the CSS file is missing
 
 load_css()
 
@@ -225,7 +228,6 @@ event = st.plotly_chart(
 if event and "selection" in event and event["selection"]["points"]:
     clicked_town = event["selection"]["points"][0]["location"]
 
-    # Find matching place_name
     matched_city = cities[
         cities["place_name"].str.upper().str.contains(clicked_town.upper())
     ]
@@ -264,7 +266,7 @@ df_fb = get_foreign_born_percent(place_fips)
 df_income = get_income_trend(place_fips)
 df_poverty = get_poverty_trend(place_fips)
 
-# Ensure numeric years
+# Ensure numeric years and clear NaNs
 df_fb["year"] = pd.to_numeric(df_fb["year"], errors="coerce")
 df_income["year"] = pd.to_numeric(df_income["year"], errors="coerce")
 df_poverty["year"] = pd.to_numeric(df_poverty["year"], errors="coerce")
@@ -277,7 +279,6 @@ df_poverty = df_poverty.dropna(subset=["year"])
 # Overlap for structural chart (needs all 3)
 # ---------------------------
 
-# Use an outer merge and interpolate missing values to maximize data usage
 df_struct = (
     df_fb
     .merge(df_income, on="year", how="outer")
@@ -286,7 +287,7 @@ df_struct = (
     .reset_index(drop=True)
 )
 
-if not df_struct.empty:
+if len(df_struct) > 0:
     df_struct["foreign_born_percent"] = df_struct["foreign_born_percent"].interpolate(method="linear", limit_direction="both")
     df_struct["median_income"] = df_struct["median_income"].interpolate(method="linear", limit_direction="both")
     df_struct["poverty_rate"] = df_struct["poverty_rate"].interpolate(method="linear", limit_direction="both")
@@ -303,7 +304,7 @@ df_scatter = (
     .reset_index(drop=True)
 )
 
-if not df_scatter.empty:
+if len(df_scatter) > 0:
     df_scatter["foreign_born_percent"] = df_scatter["foreign_born_percent"].interpolate(method="linear", limit_direction="both")
     df_scatter["poverty_rate"] = df_scatter["poverty_rate"].interpolate(method="linear", limit_direction="both")
     df_scatter = df_scatter.dropna(subset=["foreign_born_percent", "poverty_rate"])
@@ -312,7 +313,7 @@ if not df_scatter.empty:
 # Headline Metrics
 # ---------------------------
 
-if not df_fb.empty:
+if len(df_fb) > 0:
     latest_percent = df_fb["foreign_born_percent"].iloc[-1]
     start_val = df_fb["foreign_born_percent"].iloc[0]
     end_val = df_fb["foreign_born_percent"].iloc[-1]
@@ -331,7 +332,8 @@ m2.metric("Growth Since Start", f"{growth:.1f}%" if pd.notna(growth) else "N/A")
 
 df_indexed = df_struct.copy()
 
-if not df_indexed.empty:
+# Robust check: explicitly ensure length is greater than zero
+if len(df_indexed) > 0:
     base_fb = df_indexed["foreign_born_percent"].iloc[0]
     base_inc = df_indexed["median_income"].iloc[0]
     base_pov = df_indexed["poverty_rate"].iloc[0]
@@ -394,7 +396,7 @@ else:
 # 2️⃣ IMMIGRATION vs POVERTY DYNAMIC RELATIONSHIP
 # ==================================================
 
-if not df_scatter.empty and len(df_scatter) > 1:
+if len(df_scatter) > 1:
     fig_scatter = px.scatter(
         df_scatter,
         x="foreign_born_percent",
@@ -421,7 +423,7 @@ else:
 # 3️⃣ RAW IMMIGRATION TREND (Original)
 # ==================================================
 
-if not df_fb.empty:
+if len(df_fb) > 0:
     fig_fb = px.line(
         df_fb,
         x="year",
@@ -449,7 +451,7 @@ else:
 # ==================================================
 
 if show_income:
-    if not df_income.empty:
+    if len(df_income) > 0:
         fig_income = px.line(
             df_income,
             x="year",
@@ -469,7 +471,7 @@ if show_income:
         st.info("Income data is not available for this city.")
 
 if show_poverty:
-    if not df_poverty.empty:
+    if len(df_poverty) > 0:
         fig_poverty = px.line(
             df_poverty,
             x="year",
