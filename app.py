@@ -1,5 +1,7 @@
 import streamlit as st
 import plotly.express as px
+import plotly.graph_objects as go
+import json
 from src.queries import (
     get_cities,
     get_foreign_born_percent,
@@ -8,7 +10,7 @@ from src.queries import (
 )
 
 # --------------------------------------------------
-# Page Config
+# Page Config (MUST be first Streamlit command)
 # --------------------------------------------------
 
 st.set_page_config(
@@ -28,19 +30,32 @@ def load_css():
 load_css()
 
 # --------------------------------------------------
-# Sidebar
+# Load Massachusetts GeoJSON
+# --------------------------------------------------
+
+@st.cache_data
+def load_ma_map():
+    with open("data/ma_municipalities.geojson") as f:
+        return json.load(f)
+
+ma_geo = load_ma_map()
+
+def normalize(name):
+    return str(name).strip().upper()
+
+# --------------------------------------------------
+# Sidebar Controls
 # --------------------------------------------------
 
 with st.sidebar:
     st.markdown("### Display Options")
-
     show_income = st.toggle("Income Trend", value=False)
     show_poverty = st.toggle("Poverty Trend", value=False)
     show_markers = st.toggle("Markers", value=True)
     smooth_lines = st.toggle("Smooth Lines", value=False)
 
 # --------------------------------------------------
-# Hero Section (Fade-In)
+# Hero Section
 # --------------------------------------------------
 
 st.markdown("""
@@ -55,31 +70,78 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------
-# Animated Content Section
+# Get City Data
+# --------------------------------------------------
+
+cities = get_cities(gateway_only=False)
+gateway_cities = get_cities(gateway_only=True)
+
+gateway_names = set(normalize(n) for n in gateway_cities["place_name"])
+
+# --------------------------------------------------
+# Map Section (Fades in under hero)
+# --------------------------------------------------
+
+st.markdown('<div class="map-container">', unsafe_allow_html=True)
+
+selected_city = st.selectbox(
+    "Select City",
+    cities["place_name"],
+    label_visibility="collapsed"
+)
+
+selected_city_norm = normalize(selected_city)
+
+locations = []
+z_values = []
+
+for feature in ma_geo["features"]:
+    town_name = feature["properties"]["TOWN"]
+    locations.append(town_name)
+
+    if normalize(town_name) == selected_city_norm:
+        z_values.append(2)  # Selected city
+    elif normalize(town_name) in gateway_names:
+        z_values.append(1)  # Gateway city
+    else:
+        z_values.append(0)  # Non-gateway
+
+fig_map = go.Figure(go.Choroplethmapbox(
+    geojson=ma_geo,
+    locations=locations,
+    z=z_values,
+    featureidkey="properties.TOWN",
+    colorscale=[
+        [0.0, "#f2f2f2"],
+        [0.5, "#E10600"],
+        [1.0, "#111111"]
+    ],
+    zmin=0,
+    zmax=2,
+    marker_line_width=0.6,
+    marker_line_color="#222",
+    showscale=False,
+    hovertemplate="<b>%{location}</b><extra></extra>"
+))
+
+fig_map.update_layout(
+    mapbox_style="carto-positron",
+    mapbox_zoom=7,
+    mapbox_center={"lat": 42.3, "lon": -71.8},
+    margin=dict(l=0, r=0, t=0, b=0),
+    height=500,
+)
+
+st.plotly_chart(fig_map, use_container_width=True)
+st.markdown('</div>', unsafe_allow_html=True)
+
+# --------------------------------------------------
+# Data Section
 # --------------------------------------------------
 
 st.markdown('<div class="section">', unsafe_allow_html=True)
 
-# --------------------------------------------------
-# City Selector
-# --------------------------------------------------
-
-cities = get_cities(gateway_only=False)
-
-col1, col2 = st.columns([2, 1])
-
-with col1:
-    selected_city = st.selectbox(
-        "Select City",
-        cities["place_name"],
-        label_visibility="collapsed"
-    )
-
 place_fips = cities[cities["place_name"] == selected_city]["place_fips"].values[0]
-
-# --------------------------------------------------
-# Foreign-Born Trend
-# --------------------------------------------------
 
 df_fb = get_foreign_born_percent(place_fips)
 
@@ -89,13 +151,10 @@ growth = (
     / df_fb["foreign_born_percent"].iloc[0]
 ) * 100
 
-# Metric Row
 m1, m2 = st.columns(2)
-
 m1.metric("Current Foreign-Born %", f"{latest_percent:.1f}%")
 m2.metric("Growth Since Start", f"{growth:.1f}%")
 
-# Chart
 fig_fb = px.line(
     df_fb,
     x="year",
@@ -119,7 +178,7 @@ st.plotly_chart(fig_fb, use_container_width=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
 # --------------------------------------------------
-# Optional Economic Context
+# Optional Income
 # --------------------------------------------------
 
 if show_income:
@@ -146,6 +205,10 @@ if show_income:
     st.plotly_chart(fig_income, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
+# --------------------------------------------------
+# Optional Poverty
+# --------------------------------------------------
+
 if show_poverty:
     df_poverty = get_poverty_trend(place_fips)
 
@@ -171,15 +234,15 @@ if show_poverty:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # --------------------------------------------------
-# Editorial Insight Block
+# Insight Block
 # --------------------------------------------------
 
 st.markdown("""
 ### Investigative Insight
 
 Use this interface to explore how foreign-born population growth aligns
-with economic conditions across time. Toggle contextual layers to identify
-divergence, acceleration, or structural shifts.
+with structural economic indicators across time. Toggle contextual layers
+to identify divergence, acceleration, or structural shifts.
 """)
 
 st.markdown('</div>', unsafe_allow_html=True)
