@@ -2,7 +2,6 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 import json
-import pandas as pd
 from src.queries import (
     get_cities,
     get_foreign_born_percent,
@@ -69,17 +68,11 @@ center_lat = (min_lat + max_lat) / 2
 center_lon = (min_lon + max_lon) / 2
 
 # --------------------------------------------------
-# Sidebar Controls (ADD ONLY)
+# Sidebar Controls
 # --------------------------------------------------
 
 with st.sidebar:
     st.markdown("### Display Options")
-
-    # NEW (does not affect default behavior)
-    compare_mode = st.toggle("Compare Multiple Cities", value=False)
-    map_metric_mode = st.toggle("Color Map by Metric", value=False)
-    map_year = st.slider("Map Year", 2010, 2024, 2024)
-
     show_income = st.toggle("Income Trend", value=False)
     show_poverty = st.toggle("Poverty Trend", value=False)
     show_markers = st.toggle("Markers", value=True)
@@ -124,7 +117,7 @@ gateway_names = set(
 locations = [f["properties"]["TOWN"] for f in ma_geo["features"]]
 
 # --------------------------------------------------
-# Build Map (UNCHANGED)
+# Build Map
 # --------------------------------------------------
 
 @st.cache_resource
@@ -195,53 +188,21 @@ def build_base_map(geojson, locations, center_lat, center_lon):
 base_fig = build_base_map(ma_geo, locations, center_lat, center_lon)
 
 # --------------------------------------------------
-# Map Logic (STRICTLY ADDITIVE)
+# Show Map FIRST (before selector)
 # --------------------------------------------------
 
-if compare_mode:
-    selected_cities = st.multiselect(
-        "Select Cities",
-        cities["place_name"],
-        default=[cities["place_name"].iloc[0]]
-    )
-else:
-    selected_cities = [
-        st.session_state.get("city_selector", cities["place_name"].iloc[0])
-    ]
-
-selected_norms = set(normalize(c) for c in selected_cities)
+selected_city = st.session_state.get("city_selector", cities["place_name"].iloc[0])
+selected_city_norm = normalize(selected_city)
 
 z_values = []
-
-if not map_metric_mode:
-    # EXACT ORIGINAL BEHAVIOR
-    for town_name in locations:
-        town_norm = normalize(town_name)
-        if town_norm in selected_norms:
-            z_values.append(2)
-        elif town_norm in gateway_names:
-            z_values.append(1)
-        else:
-            z_values.append(0)
-else:
-    # Metric coloring (foreign-born % only to keep correctness)
-    values = []
-    for town_name in locations:
-        town_norm = normalize(town_name)
-        match = cities[cities["place_name"].str.upper().str.contains(town_norm)]
-        if not match.empty:
-            pf = match["place_fips"].values[0]
-            df = get_foreign_born_percent(pf)
-            row = df[df["year"] == map_year]
-            if not row.empty:
-                values.append(row["foreign_born_percent"].values[0])
-            else:
-                values.append(0)
-        else:
-            values.append(0)
-    z_values = values
-    base_fig.data[0].showscale = True
-    base_fig.data[0].colorscale = "Reds"
+for town_name in locations:
+    town_norm = normalize(town_name)
+    if town_norm == selected_city_norm:
+        z_values.append(2)
+    elif town_norm in gateway_names:
+        z_values.append(1)
+    else:
+        z_values.append(0)
 
 fig_map = base_fig
 fig_map.data[0].z = z_values
@@ -249,50 +210,107 @@ fig_map.data[0].z = z_values
 st.plotly_chart(fig_map, use_container_width=True)
 
 # --------------------------------------------------
-# City Selector (UNCHANGED)
+# City Selector (NOW BELOW MAP)
 # --------------------------------------------------
 
-if not compare_mode:
-    selected_city = st.selectbox(
-        "Select City",
-        cities["place_name"],
-        index=0,
-        label_visibility="collapsed",
-        key="city_selector"
-    )
-    selected_cities = [selected_city]
+selected_city = st.selectbox(
+    "Select City",
+    cities["place_name"],
+    index=0,
+    label_visibility="collapsed",
+    key="city_selector"
+)
+
+selected_city_norm = normalize(selected_city)
 
 # --------------------------------------------------
-# Data Section (ENHANCED BUT SAFE)
+# Data Section
 # --------------------------------------------------
 
 st.markdown('<div class="section">', unsafe_allow_html=True)
 
-fig_fb = go.Figure()
+place_fips = cities[cities["place_name"] == selected_city]["place_fips"].values[0]
 
-for city in selected_cities:
-    pf = cities[cities["place_name"] == city]["place_fips"].values[0]
-    df_fb = get_foreign_born_percent(pf)
+df_fb = get_foreign_born_percent(place_fips)
 
-    fig_fb.add_trace(go.Scatter(
-        x=df_fb["year"],
-        y=df_fb["foreign_born_percent"],
-        mode="lines+markers" if show_markers else "lines",
-        name=city
-    ))
+latest_percent = df_fb["foreign_born_percent"].iloc[-1]
+growth = (
+    (df_fb["foreign_born_percent"].iloc[-1] - df_fb["foreign_born_percent"].iloc[0])
+    / df_fb["foreign_born_percent"].iloc[0]
+) * 100
+
+m1, m2 = st.columns(2)
+m1.metric("Current Foreign-Born %", f"{latest_percent:.1f}%")
+m2.metric("Growth Since Start", f"{growth:.1f}%")
+
+fig_fb = px.line(
+    df_fb,
+    x="year",
+    y="foreign_born_percent",
+    markers=show_markers,
+)
 
 if smooth_lines:
     fig_fb.update_traces(line_shape="spline")
 
 fig_fb.update_layout(
     template="plotly_white",
-    title="Foreign-Born Population (%)",
+    title=f"Foreign-Born Population (%) — {selected_city}",
     font=dict(family="Inter"),
     title_font=dict(size=20),
+    margin=dict(l=20, r=20, t=60, b=20),
 )
 
 st.markdown('<div class="chart-card">', unsafe_allow_html=True)
 st.plotly_chart(fig_fb, use_container_width=True)
 st.markdown('</div>', unsafe_allow_html=True)
+
+if show_income:
+    df_income = get_income_trend(place_fips)
+
+    fig_income = px.line(
+        df_income,
+        x="year",
+        y="median_income",
+        markers=show_markers,
+    )
+
+    if smooth_lines:
+        fig_income.update_traces(line_shape="spline")
+
+    fig_income.update_layout(
+        template="plotly_white",
+        title=f"Median Household Income — {selected_city}",
+        font=dict(family="Inter"),
+        title_font=dict(size=18),
+    )
+
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+    st.plotly_chart(fig_income, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+if show_poverty:
+    df_poverty = get_poverty_trend(place_fips)
+
+    fig_poverty = px.line(
+        df_poverty,
+        x="year",
+        y="poverty_rate",
+        markers=show_markers,
+    )
+
+    if smooth_lines:
+        fig_poverty.update_traces(line_shape="spline")
+
+    fig_poverty.update_layout(
+        template="plotly_white",
+        title=f"Poverty Rate — {selected_city}",
+        font=dict(family="Inter"),
+        title_font=dict(size=18),
+    )
+
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+    st.plotly_chart(fig_poverty, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
