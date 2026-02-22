@@ -152,7 +152,7 @@ fig_map.update_layout(
     mapbox=dict(
         style="white-bg",
         center=dict(lat=center_lat, lon=center_lon),
-        zoom=7.5,   # adjust slightly if needed
+        zoom=9,   # adjust slightly if needed
     ),
     margin=dict(l=0, r=0, t=0, b=0),
     height=1050,
