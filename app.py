@@ -114,14 +114,24 @@ gateway_names = set(
     for n in gateway_cities["place_name"]
 )
 
-# --------------------------------------------------
-# Prepare Locations Once
-# --------------------------------------------------
-
 locations = [f["properties"]["TOWN"] for f in ma_geo["features"]]
 
 # --------------------------------------------------
-# Cached Base Map (Static Geometry + Legend)
+# Single City Selector (ONLY ONE)
+# --------------------------------------------------
+
+selected_city = st.selectbox(
+    "Select City",
+    cities["place_name"],
+    index=0,
+    label_visibility="collapsed",
+    key="city_selector"
+)
+
+selected_city_norm = normalize(selected_city)
+
+# --------------------------------------------------
+# Build Map
 # --------------------------------------------------
 
 @st.cache_resource
@@ -146,7 +156,6 @@ def build_base_map(geojson, locations, center_lat, center_lon):
         hovertemplate="<b>%{location}</b><extra></extra>"
     ))
 
-    # Manual Legend
     fig.add_trace(go.Scattermapbox(
         lat=[None], lon=[None],
         mode="markers",
@@ -190,23 +199,11 @@ def build_base_map(geojson, locations, center_lat, center_lon):
 
     return fig
 
-
-# Build static base once
 base_fig = build_base_map(ma_geo, locations, center_lat, center_lon)
 
-# --------------------------------------------------
-# Default Selection
-# --------------------------------------------------
-
-selected_city = cities["place_name"].iloc[0]
-selected_city_norm = normalize(selected_city)
-
-# Compute dynamic z values
 z_values = []
-
 for town_name in locations:
     town_norm = normalize(town_name)
-
     if town_norm == selected_city_norm:
         z_values.append(2)
     elif town_norm in gateway_names:
@@ -214,25 +211,10 @@ for town_name in locations:
     else:
         z_values.append(0)
 
-# Update cached base map safely
 fig_map = base_fig.copy()
 fig_map.data[0].z = z_values
 
 st.plotly_chart(fig_map, use_container_width=True)
-
-# --------------------------------------------------
-# Dropdown Below Map
-# --------------------------------------------------
-
-selected_city = st.selectbox(
-    "Select City",
-    cities["place_name"],
-    index=cities["place_name"].tolist().index(selected_city),
-    label_visibility="collapsed",
-    key="city_selector_main"
-)
-
-selected_city_norm = normalize(selected_city)
 
 # --------------------------------------------------
 # Data Section
@@ -276,10 +258,6 @@ st.markdown('<div class="chart-card">', unsafe_allow_html=True)
 st.plotly_chart(fig_fb, use_container_width=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
-# --------------------------------------------------
-# Optional Income
-# --------------------------------------------------
-
 if show_income:
     df_income = get_income_trend(place_fips)
 
@@ -303,10 +281,6 @@ if show_income:
     st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     st.plotly_chart(fig_income, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
-
-# --------------------------------------------------
-# Optional Poverty
-# --------------------------------------------------
 
 if show_poverty:
     df_poverty = get_poverty_trend(place_fips)
