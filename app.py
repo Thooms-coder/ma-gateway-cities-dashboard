@@ -489,7 +489,7 @@ with st.container():
             # Drop zero values
             df_origins = df_origins[df_origins["foreign_born"] > 0]
 
-            # Remove aggregates
+            # Remove aggregate rows
             df_origins = df_origins[
                 ~df_origins["country_label"].str.contains(
                     "Other|n.e.c|Stateless|excluding",
@@ -499,38 +499,28 @@ with st.container():
             ]
 
             # --------------------------------
-            # Extract Sovereign Country
+            # Extract sovereign country name
             # --------------------------------
-            # Take last segment after hierarchy
-            df_origins["country_clean"] = (
-                df_origins["country_label"]
-                .str.replace(r"\s*\(.*?\)", "", regex=True)  # remove parentheses
-                .str.split()
-                .str[-1]
-            )
 
-            # Special fix for multi-word countries
-            multi_word_fixes = {
-                "Kingdom": "United Kingdom",
-                "States": "United States",
-                "Republic": None,  # handled via lookup
-            }
-
-            # Better approach: use lookup on full string after removing region prefix
+            # Remove region prefix
             df_origins["country_candidate"] = (
                 df_origins["country_label"]
-                .str.replace(r"\s*\(.*?\)", "", regex=True)
-                .str.replace(
-                    r"^(Africa|Americas|Asia|Europe|Oceania)(.*?\s)",
-                    "",
-                    regex=True
-                )
+                .str.replace(r"^(Africa|Americas|Asia|Europe|Oceania)\s+", "", regex=True)
+                .str.replace(r"\s*\(.*?\)", "", regex=True)  # remove parentheses
                 .str.strip()
             )
 
+            # Drop known sub-national rows
+            subnational = ["England", "Scotland", "Wales"]
+            df_origins = df_origins[
+                ~df_origins["country_candidate"].isin(subnational)
+            ]
+
             # --------------------------------
-            # Convert to ISO3 (robust matching)
+            # Convert to ISO3
             # --------------------------------
+            import pycountry
+
             def to_iso3(name):
                 try:
                     return pycountry.countries.lookup(name).alpha_3
@@ -538,7 +528,6 @@ with st.container():
                     return None
 
             df_origins["iso3"] = df_origins["country_candidate"].apply(to_iso3)
-
             df_origins = df_origins.dropna(subset=["iso3"])
 
             if df_origins.empty:
