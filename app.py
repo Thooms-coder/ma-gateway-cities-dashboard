@@ -44,6 +44,35 @@ def normalize(name):
     return str(name).strip().upper()
 
 # --------------------------------------------------
+# Compute Geo Bounds (for tight centering)
+# --------------------------------------------------
+
+def get_geo_bounds(geojson):
+    lats = []
+    lons = []
+
+    def extract_coords(coords):
+        if isinstance(coords[0], list):
+            for c in coords:
+                extract_coords(c)
+        else:
+            lons.append(coords[0])
+            lats.append(coords[1])
+
+    for feature in geojson["features"]:
+        extract_coords(feature["geometry"]["coordinates"])
+
+    return min(lats), max(lats), min(lons), max(lons)
+
+min_lat, max_lat, min_lon, max_lon = get_geo_bounds(ma_geo)
+
+center_lat = (min_lat + max_lat) / 2
+center_lon = (min_lon + max_lon) / 2
+
+# Massachusetts fits cleanly around zoom 8
+MAP_ZOOM = 8.0
+
+# --------------------------------------------------
 # Sidebar Controls
 # --------------------------------------------------
 
@@ -70,7 +99,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------
-# Get City Data
+# City Data
 # --------------------------------------------------
 
 cities = get_cities(gateway_only=False)
@@ -79,10 +108,8 @@ gateway_cities = get_cities(gateway_only=True)
 gateway_names = set(normalize(n) for n in gateway_cities["place_name"])
 
 # --------------------------------------------------
-# Map Section (Fades in under hero)
+# Map Section
 # --------------------------------------------------
-
-st.markdown('<div class="map-container">', unsafe_allow_html=True)
 
 selected_city = st.selectbox(
     "Select City",
@@ -100,11 +127,11 @@ for feature in ma_geo["features"]:
     locations.append(town_name)
 
     if normalize(town_name) == selected_city_norm:
-        z_values.append(2)  # Selected city
+        z_values.append(2)
     elif normalize(town_name) in gateway_names:
-        z_values.append(1)  # Gateway city
+        z_values.append(1)
     else:
-        z_values.append(0)  # Non-gateway
+        z_values.append(0)
 
 fig_map = go.Figure(go.Choroplethmapbox(
     geojson=ma_geo,
@@ -127,7 +154,8 @@ fig_map = go.Figure(go.Choroplethmapbox(
 fig_map.update_layout(
     mapbox=dict(
         style="white-bg",
-        fitbounds="locations"
+        center=dict(lat=center_lat, lon=center_lon),
+        zoom=MAP_ZOOM
     ),
     margin=dict(l=0, r=0, t=0, b=0),
 )
@@ -233,17 +261,5 @@ if show_poverty:
     st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     st.plotly_chart(fig_poverty, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
-
-# --------------------------------------------------
-# Insight Block
-# --------------------------------------------------
-
-st.markdown("""
-### Investigative Insight
-
-Use this interface to explore how foreign-born population growth aligns
-with structural economic indicators across time. Toggle contextual layers
-to identify divergence, acceleration, or structural shifts.
-""")
 
 st.markdown('</div>', unsafe_allow_html=True)
