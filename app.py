@@ -121,15 +121,35 @@ gateway_names = set(
 locations = [f["properties"]["TOWN"] for f in ma_geo["features"]]
 
 # --------------------------------------------------
-# Cached Base Map (Static Geometry + Legend)
+# Map Section
 # --------------------------------------------------
 
-@st.cache_data
-def build_base_map(geojson, locations, center_lat, center_lon):
-    fig = go.Figure(go.Choroplethmapbox(
-        geojson=geojson,
+selected_city = st.selectbox(
+    "Select City",
+    cities["place_name"],
+    index=0,
+    label_visibility="collapsed"
+)
+
+selected_city_norm = normalize(selected_city)
+
+locations = [f["properties"]["TOWN"] for f in ma_geo["features"]]
+
+z_values = []
+for town_name in locations:
+    town_norm = normalize(town_name)
+    if town_norm == selected_city_norm:
+        z_values.append(2)
+    elif town_norm in gateway_names:
+        z_values.append(1)
+    else:
+        z_values.append(0)
+
+with st.spinner("Loading map..."):
+    fig_map = go.Figure(go.Choroplethmapbox(
+        geojson=ma_geo,
         locations=locations,
-        z=[0] * len(locations),
+        z=z_values,
         featureidkey="properties.TOWN",
         colorscale=[
             [0.0, "#e5e5e5"],
@@ -141,83 +161,22 @@ def build_base_map(geojson, locations, center_lat, center_lon):
         zmin=0,
         zmax=2,
         showscale=False,
-        marker_line_width=0.7,
+        marker_line_width=0.6,
         marker_line_color="#bbbbbb",
         hovertemplate="<b>%{location}</b><extra></extra>"
     ))
 
-    # Manual Legend
-    fig.add_trace(go.Scattermapbox(
-        lat=[None], lon=[None],
-        mode="markers",
-        marker=dict(size=12, color="#111111"),
-        name="Selected City"
-    ))
-
-    fig.add_trace(go.Scattermapbox(
-        lat=[None], lon=[None],
-        mode="markers",
-        marker=dict(size=12, color="#E10600"),
-        name="Gateway City"
-    ))
-
-    fig.add_trace(go.Scattermapbox(
-        lat=[None], lon=[None],
-        mode="markers",
-        marker=dict(size=12, color="#e5e5e5"),
-        name="Other Municipality"
-    ))
-
-    fig.update_layout(
+    fig_map.update_layout(
         mapbox=dict(
-            style="white-bg",
+            style="carto-positron",
             center=dict(lat=center_lat, lon=center_lon),
             zoom=8.3,
         ),
         margin=dict(l=0, r=0, t=0, b=0),
-        height=1050,
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=0.01,
-            xanchor="center",
-            x=0.5,
-            bgcolor="rgba(255,255,255,0.85)",
-            bordercolor="#dddddd",
-            borderwidth=1
-        )
+        height=850,
     )
 
-    return fig
-
-# Build static base once
-base_fig = build_base_map(ma_geo, locations, center_lat, center_lon)
-
-# --------------------------------------------------
-# Default Selection
-# --------------------------------------------------
-
-selected_city = cities["place_name"].iloc[0]
-selected_city_norm = normalize(selected_city)
-
-# Compute dynamic z values
-z_values = []
-
-for town_name in locations:
-    town_norm = normalize(town_name)
-
-    if town_norm == selected_city_norm:
-        z_values.append(2)
-    elif town_norm in gateway_names:
-        z_values.append(1)
-    else:
-        z_values.append(0)
-
-# Update cached base map
-fig_map = base_fig
-fig_map.data[0].z = z_values
-
-st.plotly_chart(fig_map, use_container_width=True)
+    st.plotly_chart(fig_map, use_container_width=True)
 
 # --------------------------------------------------
 # Dropdown Below Map
