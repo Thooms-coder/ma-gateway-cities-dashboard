@@ -494,6 +494,10 @@ with st.container():
 
             df_origins["country_label"] = df_origins["country_label"].replace(country_fixes)
 
+            st.write("Countries being plotted:")
+            st.write(df_origins["country_label"].unique())
+            st.write("Row count:", len(df_origins))
+
             # --------------------------------
             # Base Choropleth
             # --------------------------------
