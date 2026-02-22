@@ -145,63 +145,61 @@ tab_demo, tab_ethics = st.tabs([
 with tab_demo:
     st.markdown('<div class="fade-in">', unsafe_allow_html=True)
     
-    # --- Map & Metrics Layout ---
-    col_map, col_data = st.columns([1.2, 1])
+    # --- Geographic Context (Full Width) ---
+    st.markdown("#### Geographic Context")
+    
+    @st.cache_resource
+    def build_base_map(geojson, locations, center_lat, center_lon):
+        fig = go.Figure(go.Choroplethmapbox(
+            geojson=geojson, locations=locations, z=[0] * len(locations),
+            featureidkey="properties.TOWN",
+            colorscale=[[0.0, "#e5e5e5"], [0.499, "#e5e5e5"], [0.5, "#8b0000"], [0.999, "#8b0000"], [1.0, "#111111"]],
+            zmin=0, zmax=2, showscale=False, marker_line_width=0.5, marker_line_color="#ffffff",
+            hovertemplate="<b>%{location}</b><extra></extra>"
+        ))
 
-    with col_map:
-        st.markdown("#### Geographic Context")
+        gw_locs = [loc for loc in locations if normalize(loc) in gateway_names]
+        gw_texts = [get_abbreviation(loc) for loc in gw_locs]
         
-        @st.cache_resource
-        def build_base_map(geojson, locations, center_lat, center_lon):
-            fig = go.Figure(go.Choroplethmapbox(
-                geojson=geojson, locations=locations, z=[0] * len(locations),
-                featureidkey="properties.TOWN",
-                colorscale=[[0.0, "#e5e5e5"], [0.499, "#e5e5e5"], [0.5, "#8b0000"], [0.999, "#8b0000"], [1.0, "#111111"]],
-                zmin=0, zmax=2, showscale=False, marker_line_width=0.5, marker_line_color="#ffffff",
-                hovertemplate="<b>%{location}</b><extra></extra>"
-            ))
+        fig.add_trace(go.Scattermapbox(
+            lat=[None]*len(gw_locs), lon=[None]*len(gw_locs), 
+            mode="markers", marker=dict(size=10, color="#8b0000"), name="Gateway City"
+        ))
 
-            gw_locs = [loc for loc in locations if normalize(loc) in gateway_names]
-            gw_texts = [get_abbreviation(loc) for loc in gw_locs]
-            
-            fig.add_trace(go.Scattermapbox(
-                lat=[None]*len(gw_locs), lon=[None]*len(gw_locs), 
-                mode="markers", marker=dict(size=10, color="#8b0000"), name="Gateway City"
-            ))
+        fig.update_layout(
+            clickmode="event+select",
+            mapbox=dict(style="white-bg", center=dict(lat=center_lat, lon=center_lon), zoom=7.5),
+            margin=dict(l=0, r=0, t=0, b=0), height=600,
+            legend=dict(orientation="h", yanchor="bottom", y=0.02, xanchor="center", x=0.5, bgcolor="rgba(255,255,255,0.9)")
+        )
+        return fig
 
-            fig.update_layout(
-                clickmode="event+select",
-                mapbox=dict(style="white-bg", center=dict(lat=center_lat, lon=center_lon), zoom=6.5),
-                margin=dict(l=0, r=0, t=0, b=0), height=700,
-                legend=dict(orientation="h", yanchor="bottom", y=0.02, xanchor="center", x=0.5, bgcolor="rgba(255,255,255,0.9)")
-            )
-            return fig
+    base_fig = build_base_map(ma_geo, locations, center_lat, center_lon)
+    
+    z_values = []
+    for town_name in locations:
+        town_norm = normalize(town_name)
+        if town_norm == selected_city_norm:
+            z_values.append(2)
+        elif town_norm in gateway_names:
+            z_values.append(1)
+        else:
+            z_values.append(0)
 
-        base_fig = build_base_map(ma_geo, locations, center_lat, center_lon)
+    fig_map = go.Figure(base_fig)
+    fig_map.data[0].z = z_values
+
+    # Render map full width
+    map_event = st.plotly_chart(fig_map, use_container_width=True, on_select="rerun", key="map_select")
+    
+    # Handle map click to instantly sync dropdown
+    if map_event and "selection" in map_event and map_event["selection"]["points"]:
+        clicked_town = map_event["selection"]["points"][0]["location"]
+        matched_city = cities[cities["place_name"].str.upper().str.contains(clicked_town.upper())]
         
-        z_values = []
-        for town_name in locations:
-            town_norm = normalize(town_name)
-            if town_norm == selected_city_norm:
-                z_values.append(2)
-            elif town_norm in gateway_names:
-                z_values.append(1)
-            else:
-                z_values.append(0)
-
-        fig_map = go.Figure(base_fig)
-        fig_map.data[0].z = z_values
-
-        map_event = st.plotly_chart(fig_map, use_container_width=True, on_select="rerun", key="map_select")
-        
-        # Handle map click to instantly sync dropdown
-        if map_event and "selection" in map_event and map_event["selection"]["points"]:
-            clicked_town = map_event["selection"]["points"][0]["location"]
-            matched_city = cities[cities["place_name"].str.upper().str.contains(clicked_town.upper())]
-            
-            if not matched_city.empty and matched_city["place_name"].iloc[0] != st.session_state.selected_city:
-                st.session_state.selected_city = matched_city["place_name"].iloc[0]
-                st.rerun()
+        if not matched_city.empty and matched_city["place_name"].iloc[0] != st.session_state.selected_city:
+            st.session_state.selected_city = matched_city["place_name"].iloc[0]
+            st.rerun()
 
     # --- Data Fetching & Processing ---
     df_fb = get_foreign_born_percent(place_fips)
@@ -215,27 +213,29 @@ with tab_demo:
     df_struct = df_fb.merge(df_income, on="year", how="outer").merge(df_poverty, on="year", how="outer").sort_values("year").reset_index(drop=True)
     df_struct = df_struct.interpolate(method="linear", limit_direction="both").dropna()
 
-    with col_data:
-        st.markdown("#### Analytical Brief")
-        if len(df_fb) > 0:
-            latest_percent = df_fb["foreign_born_percent"].iloc[-1]
-            start_val = df_fb["foreign_born_percent"].iloc[0]
-            growth = ((latest_percent - start_val) / start_val) * 100 if start_val != 0 else 0
-            
-            if growth > 15:
-                st.warning(f"Rapid Demographic Shift: Foreign-born population expanded by {growth:.1f}%. Cross-reference housing capacity.")
-            elif growth < 0:
-                st.info(f"Population Contraction: Foreign-born population declined by {abs(growth):.1f}%.")
+    # --- Analytical Brief (Displayed below the map) ---
+    st.markdown("#### Analytical Brief")
+    
+    if len(df_fb) > 0:
+        latest_percent = df_fb["foreign_born_percent"].iloc[-1]
+        start_val = df_fb["foreign_born_percent"].iloc[0]
+        growth = ((latest_percent - start_val) / start_val) * 100 if start_val != 0 else 0
+        
+        if growth > 15:
+            st.warning(f"Rapid Demographic Shift: Foreign-born population expanded by {growth:.1f}%. Cross-reference housing capacity.")
+        elif growth < 0:
+            st.info(f"Population Contraction: Foreign-born population declined by {abs(growth):.1f}%.")
 
-            c1, c2 = st.columns(2)
-            with c1:
-                st.markdown(f'<div class="kpi-container"><div class="kpi-label">Foreign-Born %</div><div class="kpi-value">{latest_percent:.1f}%</div></div>', unsafe_allow_html=True)
-            with c2:
-                st.markdown(f'<div class="kpi-container"><div class="kpi-label">Growth (Full Period)</div><div class="kpi-value">{growth:.1f}%</div></div>', unsafe_allow_html=True)
+        col_kpi, col_lede = st.columns([1, 2])
+        
+        with col_kpi:
+            st.markdown(f'<div class="kpi-container"><div class="kpi-label">Foreign-Born %</div><div class="kpi-value">{latest_percent:.1f}%</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="kpi-container"><div class="kpi-label">Growth (Full Period)</div><div class="kpi-value">{growth:.1f}%</div></div>', unsafe_allow_html=True)
 
+        with col_lede:
             trend_word = "surged" if growth > 10 else "grown" if growth > 0 else "declined"
             st.markdown(f"""
-            <div style="background:#f4f4f4; padding:15px; border-left:3px solid #111; margin-top:10px; font-size:0.95rem;">
+            <div style="background:#f4f4f4; padding:20px; border-left:4px solid #8b0000; height: 100%; font-size:1.05rem; line-height: 1.6;">
             <strong>Auto-Generated Lede:</strong> Over the observed period, the foreign-born population in {st.session_state.selected_city} has {trend_word} by {abs(growth):.1f}%, now representing {latest_percent:.1f}% of the total community. Investigative focus should track how this growth correlates with median income and poverty trajectories.
             </div>
             """, unsafe_allow_html=True)
@@ -243,22 +243,46 @@ with tab_demo:
     st.markdown("---")
     
     # --- Advanced Visualization: Parallel Coordinates ---
-    
     if len(df_struct) > 1:
         st.markdown(f"#### Multidimensional Socioeconomic Analysis: {st.session_state.selected_city}")
         st.markdown("This visualization traces the relationship between time, immigration percentage, median income, and poverty rate. Following a single line horizontally reveals the socioeconomic state of the city for a specific year.")
         
-        fig_par = px.parallel_coordinates(
-            df_struct, 
-            color="year", 
-            dimensions=[
-                dict(range=[min(df_struct["year"]), max(df_struct["year"])], label="Year", values=df_struct["year"]),
-                dict(range=[min(df_struct["foreign_born_percent"]), max(df_struct["foreign_born_percent"])], label="Foreign-Born %", values=df_struct["foreign_born_percent"]),
-                dict(range=[min(df_struct["median_income"]), max(df_struct["median_income"])], label="Median Income", values=df_struct["median_income"], tickformat=",.0f", tickprefix="$"),
-                dict(range=[min(df_struct["poverty_rate"]), max(df_struct["poverty_rate"])], label="Poverty Rate (%)", values=df_struct["poverty_rate"])
-            ],
-            color_continuous_scale=px.colors.diverging.Tealrose,
+        # Swapped to go.Parcoords to handle the dictionary formatting natively
+        fig_par = go.Figure(data=
+            go.Parcoords(
+                line=dict(
+                    color=df_struct['year'], 
+                    colorscale='Tealrose',
+                    showscale=True,
+                    cmin=df_struct['year'].min(),
+                    cmax=df_struct['year'].max()
+                ),
+                dimensions=[
+                    dict(
+                        range=[df_struct["year"].min(), df_struct["year"].max()], 
+                        label="Year", 
+                        values=df_struct["year"]
+                    ),
+                    dict(
+                        range=[df_struct["foreign_born_percent"].min(), df_struct["foreign_born_percent"].max()], 
+                        label="Foreign-Born %", 
+                        values=df_struct["foreign_born_percent"]
+                    ),
+                    dict(
+                        range=[df_struct["median_income"].min(), df_struct["median_income"].max()], 
+                        label="Median Income", 
+                        values=df_struct["median_income"], 
+                        tickformat="$,.0f" # Native Plotly currency formatting
+                    ),
+                    dict(
+                        range=[df_struct["poverty_rate"].min(), df_struct["poverty_rate"].max()], 
+                        label="Poverty Rate (%)", 
+                        values=df_struct["poverty_rate"]
+                    )
+                ]
+            )
         )
+        
         fig_par.update_layout(margin=dict(l=40, r=40, t=40, b=20), height=400)
         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
         st.plotly_chart(fig_par, use_container_width=True)
