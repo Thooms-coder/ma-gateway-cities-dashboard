@@ -268,10 +268,15 @@ with st.container():
 
     if map_event and "selection" in map_event and map_event["selection"]["points"]:
         clicked_town = map_event["selection"]["points"][0]["location"]
-        matched_city = cities[cities["place_name"].str.upper().str.contains(clicked_town.upper())]
-        if not matched_city.empty and matched_city["place_name"].iloc[0] != st.session_state.selected_city:
-            st.session_state.selected_city = matched_city["place_name"].iloc[0]
-            st.rerun()
+        town_norm = normalize(clicked_town)
+
+        if town_norm in town_fips_map:
+            new_fips = town_fips_map[town_norm]
+            new_city = cities[cities["place_fips"] == new_fips]["place_name"].iloc[0]
+
+            if new_city != st.session_state.selected_city:
+                st.session_state.update({"selected_city": new_city})
+                st.rerun()
 
     st.markdown('<hr style="border: 0; border-top: 1px solid #e1e4e8; margin: 30px 0;">', unsafe_allow_html=True)
 
