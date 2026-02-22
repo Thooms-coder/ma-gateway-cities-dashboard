@@ -481,6 +481,7 @@ with st.container():
                 .str.replace(r"\s*\(.*\)", "", regex=True)
             )
 
+            # Choropleth base
             fig_world = px.choropleth(
                 df_origins,
                 locations="country_label",
@@ -491,6 +492,32 @@ with st.container():
                 projection="natural earth",
                 title=f"{primary_city} — Foreign-Born Population by Country ({latest_year})"
             )
+
+            # ----------------------------
+            # Add proportional bubble layer
+            # ----------------------------
+
+            # Normalize marker size (log scaling improves readability)
+            df_origins["marker_size"] = np.log1p(df_origins["foreign_born"]) * 5
+
+            bubble_trace = go.Scattergeo(
+                locations=df_origins["country_label"],
+                locationmode="country names",
+                text=df_origins["country_label"],
+                marker=dict(
+                    size=df_origins["marker_size"],
+                    color="black",
+                    opacity=0.5,
+                    line=dict(width=0.5, color="white")
+                ),
+                hovertemplate=(
+                    "<b>%{text}</b><br>"
+                    "Population: %{marker.size:.0f}<extra></extra>"
+                ),
+                showlegend=False
+            )
+
+            fig_world.add_trace(bubble_trace)
 
             fig_world.update_layout(
                 margin=dict(l=0, r=0, t=40, b=0),
