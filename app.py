@@ -102,7 +102,10 @@ st.markdown("""
 cities = get_cities(gateway_only=False)
 gateway_cities = get_cities(gateway_only=True)
 
-gateway_names = set(normalize(n) for n in gateway_cities["place_name"])
+gateway_names = set(
+    normalize(n.replace(" city", "").replace(" City", ""))
+    for n in gateway_cities["place_name"]
+)
 
 # --------------------------------------------------
 # Map Section
@@ -130,58 +133,46 @@ for feature in ma_geo["features"]:
     else:
         z_values.append(0)
 fig_map = go.Figure()
-
 # --------------------------------------------------
-# 1️⃣ Base Layer — All Municipalities (Muted Gray)
+# Single Choropleth — Categorical Highlight
 # --------------------------------------------------
 
-fig_map.add_trace(go.Choroplethmapbox(
+# Ensure names align
+gateway_names = set(
+    normalize(n.replace(" city", "").replace(" City", ""))
+    for n in gateway_cities["place_name"]
+)
+
+z_values = []
+
+for feature in ma_geo["features"]:
+    town_name = feature["properties"]["TOWN"]
+    town_norm = normalize(town_name)
+
+    if town_norm == selected_city_norm:
+        z_values.append(2)          # Selected
+    elif town_norm in gateway_names:
+        z_values.append(1)          # Gateway
+    else:
+        z_values.append(0)          # Normal
+
+fig_map = go.Figure(go.Choroplethmapbox(
     geojson=ma_geo,
     locations=locations,
-    z=[0] * len(locations),
+    z=z_values,
     featureidkey="properties.TOWN",
-    colorscale=[[0, "#e5e5e5"], [1, "#e5e5e5"]],
+    colorscale=[
+        [0.0, "#e5e5e5"],   # Normal cities
+        [0.499, "#e5e5e5"],
+        [0.5, "#E10600"],   # Gateway cities
+        [0.999, "#E10600"],
+        [1.0, "#111111"],   # Selected city
+    ],
+    zmin=0,
+    zmax=2,
     showscale=False,
-    marker_line_width=0.6,
+    marker_line_width=0.7,
     marker_line_color="#bbbbbb",
-    hoverinfo="skip"
-))
-
-# --------------------------------------------------
-# 2️⃣ Gateway Cities Layer (Red)
-# --------------------------------------------------
-
-gateway_locations = [
-    f["properties"]["TOWN"]
-    for f in ma_geo["features"]
-    if normalize(f["properties"]["TOWN"]) in gateway_names
-]
-
-fig_map.add_trace(go.Choroplethmapbox(
-    geojson=ma_geo,
-    locations=gateway_locations,
-    z=[1] * len(gateway_locations),
-    featureidkey="properties.TOWN",
-    colorscale=[[0, "#E10600"], [1, "#E10600"]],
-    showscale=False,
-    marker_line_width=0.8,
-    marker_line_color="#ffffff",
-    hovertemplate="<b>%{location}</b><extra></extra>"
-))
-
-# --------------------------------------------------
-# 3️⃣ Selected City Layer (Black)
-# --------------------------------------------------
-
-fig_map.add_trace(go.Choroplethmapbox(
-    geojson=ma_geo,
-    locations=[selected_city],
-    z=[1],
-    featureidkey="properties.TOWN",
-    colorscale=[[0, "#111111"], [1, "#111111"]],
-    showscale=False,
-    marker_line_width=1.2,
-    marker_line_color="#ffffff",
     hovertemplate="<b>%{location}</b><extra></extra>"
 ))
 
