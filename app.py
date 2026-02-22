@@ -153,44 +153,70 @@ st.markdown("""
 
 col_search, col_export = st.columns([3, 1])
 with col_search:
-    selected_city = st.selectbox(
-        "Search Target Municipality",
+    selected_cities = st.multiselect(
+        "Compare Municipalities (Max 3)",
         options=city_options,
-        key="selected_city"
+        default=[st.session_state.selected_city],
+        max_selections=3,
+        key="selected_cities"
     )
 
-selected_city_norm = normalize(st.session_state.selected_city)
-place_fips = cities[cities["place_name"] == st.session_state.selected_city]["place_fips"].values[0]
+    # Guarantee at least one selection
+    if not selected_cities:
+        selected_cities = [city_options[0]]
 
-# Pre-fetch core data
-df_fb = get_foreign_born_percent(place_fips)
-df_income = get_income_trend(place_fips)
-df_poverty = get_poverty_trend(place_fips)
+selected_fips = {
+    city: cities[cities["place_name"] == city]["place_fips"].values[0]
+    for city in selected_cities
+}
 
-for df in [df_fb, df_income, df_poverty]:
-    df["year"] = pd.to_numeric(df["year"], errors="coerce")
-    df.dropna(subset=["year"], inplace=True)
+primary_city = selected_cities[0]
+primary_fips = selected_fips[primary_city]
 
-df_struct = (
-    df_fb
-    .merge(df_income, on="year", how="outer")
-    .merge(df_poverty, on="year", how="outer")
-    .sort_values("year")
-    .reset_index(drop=True)
-)
-df_struct = df_struct.interpolate(method="linear", limit_direction="both").dropna()
+city_data = {}
+
+for city, fips in selected_fips.items():
+
+    df_fb = get_foreign_born_percent(fips)
+    df_income = get_income_trend(fips)
+    df_poverty = get_poverty_trend(fips)
+
+    for df in [df_fb, df_income, df_poverty]:
+        if not df.empty:
+            df["year"] = pd.to_numeric(df["year"], errors="coerce")
+            df.dropna(subset=["year"], inplace=True)
+
+    df_struct = (
+        df_fb
+        .merge(df_income, on="year", how="outer")
+        .merge(df_poverty, on="year", how="outer")
+        .sort_values("year")
+        .reset_index(drop=True)
+    )
+
+    df_struct = df_struct.interpolate(method="linear", limit_direction="both").dropna()
+
+    city_data[city] = {
+        "fb": df_fb,
+        "struct": df_struct
+    }
 
 with col_export:
     st.markdown("<br>", unsafe_allow_html=True)
-    if not df_struct.empty:
-        csv = df_struct.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="Download Master Dataset (CSV)",
-            data=csv,
-            file_name=f"{selected_city_norm}_longitudinal_data.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
+
+    if primary_city in city_data:
+        export_df = city_data[primary_city]["struct"]
+
+        if not export_df.empty:
+            csv = export_df.to_csv(index=False).encode('utf-8')
+
+            st.download_button(
+                label=f"Download {primary_city} Dataset (CSV)",
+                data=csv,
+                file_name=f"{primary_city.replace(' ', '_')}_longitudinal_data.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
 
 # ==================================================
 # SECTION 1: GEOGRAPHIC CONTEXT
@@ -255,7 +281,7 @@ with st.container():
 
         return fig
 
-    fig_map = build_map(ma_geo, locations, gateway_names, place_fips, center_lat, center_lon)
+    fig_map = build_map(ma_geo, locations, gateway_names, primary_fips, center_lat, center_lon)
     map_event = st.plotly_chart(fig_map, use_container_width=True, on_select="rerun", key="map_select")
 
     st.markdown(f"""
@@ -274,8 +300,8 @@ with st.container():
             new_fips = town_fips_map[town_norm]
             new_city = cities[cities["place_fips"] == new_fips]["place_name"].iloc[0]
 
-            if new_city != st.session_state.selected_city:
-                st.session_state.update({"selected_city": new_city})
+            if new_city not in selected_cities:
+                st.session_state["selected_cities"] = [new_city]
                 st.rerun()
 
     st.markdown('<hr style="border: 0; border-top: 1px solid #e1e4e8; margin: 30px 0;">', unsafe_allow_html=True)
@@ -304,29 +330,51 @@ with st.container():
     st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
     st.markdown("### Demographic Origins")
 
-    latest_year = df_fb["year"].max() if not df_fb.empty else 2024
-    df_origins = get_foreign_born_by_country(place_fips, latest_year)
+    primary_city = selected_cities[0]
+    primary_fips = selected_fips[primary_city]
 
-    if not df_origins.empty:
-        df_origins_top = df_origins.head(10).sort_values("foreign_born", ascending=True)
-        fig_origins = px.bar(
-            df_origins_top,
-            x="foreign_born",
-            y="country_label",
-            orientation='h',
-            title=f"Top 10 Origin Countries ({latest_year})"
-        )
-        fig_origins.update_traces(marker_color=COLOR_TARGET)
-        fig_origins.update_layout(
-            template="plotly_white",
-            margin=dict(l=20, r=20, t=40, b=20),
-            xaxis_title="Population Estimate",
-            yaxis_title="",
-            font=dict(family="Public Sans", color=COLOR_TEXT)
-        )
-        st.plotly_chart(fig_origins, use_container_width=True)
+    # Get latest available year from already-fetched data
+    df_primary = city_data[primary_city]["fb"]
+
+    if not df_primary.empty:
+        latest_year = df_primary["year"].max()
     else:
-        st.info("Country of origin breakdown currently unavailable for this municipality.")
+        latest_year = None
+
+    if latest_year is not None:
+        df_origins = get_foreign_born_by_country(primary_fips, latest_year)
+
+        if not df_origins.empty:
+            df_origins_top = (
+                df_origins
+                .head(10)
+                .sort_values("foreign_born", ascending=True)
+            )
+
+            fig_origins = px.bar(
+                df_origins_top,
+                x="foreign_born",
+                y="country_label",
+                orientation='h',
+                title=f"Top 10 Origin Countries — {primary_city} ({latest_year})"
+            )
+
+            fig_origins.update_traces(marker_color=COLOR_TARGET)
+
+            fig_origins.update_layout(
+                template="plotly_white",
+                margin=dict(l=20, r=20, t=40, b=20),
+                xaxis_title="Population Estimate",
+                yaxis_title="",
+                font=dict(family="Public Sans", color=COLOR_TEXT)
+            )
+
+            st.plotly_chart(fig_origins, use_container_width=True)
+
+        else:
+            st.info(f"Country of origin breakdown unavailable for {primary_city}.")
+    else:
+        st.info(f"No foreign-born data available for {primary_city}.")
     
 # ==================================================
 # SECTION 3: ECONOMIC INDICATORS
@@ -337,19 +385,63 @@ with st.container():
 
     col_ts1, col_ts2 = st.columns(2)
 
+    # -------------------------
+    # Median Income Comparison
+    # -------------------------
     with col_ts1:
-        if not df_struct.empty and "median_income" in df_struct.columns:
-            fig_inc = px.line(df_struct, x="year", y="median_income", title="Median Household Income ($)")
-            fig_inc.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20), font=dict(family="Public Sans"))
-            fig_inc.update_traces(line_color=COLOR_TARGET, line_width=3)
-            st.plotly_chart(fig_inc, use_container_width=True)
+        fig_inc = go.Figure()
 
+        for city, data in city_data.items():
+            df = data["struct"]
+            if not df.empty and "median_income" in df.columns:
+                fig_inc.add_trace(go.Scatter(
+                    x=df["year"],
+                    y=df["median_income"],
+                    mode="lines",
+                    name=city,
+                    line=dict(width=3)
+                ))
+
+        fig_inc.update_layout(
+            template="plotly_white",
+            margin=dict(l=20, r=20, t=40, b=20),
+            xaxis_title="Year",
+            yaxis_title="Median Household Income ($)",
+            font=dict(family="Public Sans"),
+            height=500,
+            legend=dict(title="")
+        )
+
+        st.plotly_chart(fig_inc, use_container_width=True)
+
+    # -------------------------
+    # Poverty Rate Comparison
+    # -------------------------
     with col_ts2:
-        if not df_struct.empty and "poverty_rate" in df_struct.columns:
-            fig_pov = px.line(df_struct, x="year", y="poverty_rate", title="Poverty Rate Deviation (%)")
-            fig_pov.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20), font=dict(family="Public Sans"))
-            fig_pov.update_traces(line_color=COLOR_BASE, line_width=3)
-            st.plotly_chart(fig_pov, use_container_width=True)
+        fig_pov = go.Figure()
+
+        for city, data in city_data.items():
+            df = data["struct"]
+            if not df.empty and "poverty_rate" in df.columns:
+                fig_pov.add_trace(go.Scatter(
+                    x=df["year"],
+                    y=df["poverty_rate"],
+                    mode="lines",
+                    name=city,
+                    line=dict(width=3)
+                ))
+
+        fig_pov.update_layout(
+            template="plotly_white",
+            margin=dict(l=20, r=20, t=40, b=20),
+            xaxis_title="Year",
+            yaxis_title="Poverty Rate (%)",
+            font=dict(family="Public Sans"),
+            height=500,
+            legend=dict(title="")
+        )
+
+        st.plotly_chart(fig_pov, use_container_width=True)
 
 # ==================================================
 # SECTION 4: TRAJECTORY ANALYSIS
@@ -357,41 +449,46 @@ with st.container():
 with st.container():
     st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
     st.markdown("### Structural Trajectory: Income vs. Immigration")
-    st.markdown("<p style='color: #586069; font-size: 0.95rem;'>This connected scatterplot traces the municipality's economic and demographic movement year-over-year. A consistent upward and rightward trajectory indicates simultaneous growth in median income and foreign-born population.</p>", unsafe_allow_html=True)
+    st.markdown(
+        "<p style='color: #586069; font-size: 0.95rem;'>"
+        "This connected scatterplot traces each municipality’s economic and demographic movement year-over-year. "
+        "Upward and rightward movement indicates simultaneous growth in median income and foreign-born population."
+        "</p>",
+        unsafe_allow_html=True
+    )
 
-    if len(df_struct) > 1:
-        fig_traj = go.Figure()
+    fig_traj = go.Figure()
 
-        fig_traj.add_trace(go.Scatter(
-            x=df_struct["foreign_born_percent"],
-            y=df_struct["median_income"],
-            mode='lines+markers+text',
-            text=df_struct["year"],
-            textposition="top center",
-            marker=dict(size=8, color=df_struct["year"], colorscale="Blues", showscale=False),
-            line=dict(color=COLOR_TARGET, width=2),
-            hovertemplate="<b>%{text}</b><br>Foreign-Born: %{x:.1f}%<br>Income: $%{y:,.0f}<extra></extra>"
-        ))
+    for city, data in city_data.items():
+        df = data["struct"]
 
-        fig_traj.add_trace(go.Scatter(
-            x=[df_struct["foreign_born_percent"].iloc[0], df_struct["foreign_born_percent"].iloc[-1]],
-            y=[df_struct["median_income"].iloc[0], df_struct["median_income"].iloc[-1]],
-            mode='markers',
-            marker=dict(size=12, color=[COLOR_BASE, COLOR_TARGET], symbol=['circle-open', 'circle']),
-            hoverinfo='skip',
-            showlegend=False
-        ))
+        if not df.empty and len(df) > 1:
+            fig_traj.add_trace(go.Scatter(
+                x=df["foreign_born_percent"],
+                y=df["median_income"],
+                mode='lines+markers',
+                name=city,
+                line=dict(width=2),
+                marker=dict(size=7),
+                hovertemplate=(
+                    "<b>%{text}</b><br>"
+                    "Foreign-Born: %{x:.1f}%<br>"
+                    "Income: $%{y:,.0f}<extra></extra>"
+                ),
+                text=df["year"]
+            ))
 
-        fig_traj.update_layout(
-            template="plotly_white",
-            xaxis_title="Foreign-Born Population (%)",
-            yaxis_title="Median Household Income ($)",
-            margin=dict(l=40, r=40, t=40, b=40),
-            font=dict(family="Public Sans"),
-            showlegend=False,
-            height=500
-        )
-        st.plotly_chart(fig_traj, use_container_width=True)
+    fig_traj.update_layout(
+        template="plotly_white",
+        xaxis_title="Foreign-Born Population (%)",
+        yaxis_title="Median Household Income ($)",
+        margin=dict(l=40, r=40, t=40, b=40),
+        font=dict(family="Public Sans"),
+        legend=dict(title="Municipality"),
+        height=550
+    )
+
+    st.plotly_chart(fig_traj, use_container_width=True)
     
 # ==================================================
 # SECTION 5: METHODOLOGY
