@@ -245,13 +245,12 @@ with st.container():
         fig.update_layout(
             clickmode="event+select",
             mapbox=dict(
-                style="carto-positron",              # gives geographic context + labels
-                center=dict(lat=c_lat, lon=c_lon),   # your MA center from bounds
-                zoom=6.6                              # whole Massachusetts view
-                # If you want auto-fit instead, see note below
+                style="white-bg",           
+                center=dict(lat=c_lat, lon=c_lon),   
+                zoom=8                              
             ),
             margin=dict(l=0, r=0, t=0, b=0),
-            height=700                               # bigger map
+            height=800                              
         )
 
         return fig
