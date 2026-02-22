@@ -136,17 +136,21 @@ fig_map = go.Figure(go.Choroplethmapbox(
     z=z_values,
     featureidkey="properties.TOWN",
     colorscale=[
-        [0.0, "#f2f2f2"],
-        [0.5, "#E10600"],
-        [1.0, "#111111"]
+        [0.0, "#f5f5f5"],   # Non-gateway
+        [0.5, "#E10600"],   # Gateway
+        [1.0, "#111111"],   # Selected
     ],
     zmin=0,
     zmax=2,
-    marker_line_width=0.6,
-    marker_line_color="#222",
+    marker_line_width=1.2,
+    marker_line_color="white",
     showscale=False,
-    hovertemplate="<b>%{location}</b><extra></extra>"
+    hovertemplate="<b>%{location}</b><extra></extra>",
 ))
+
+fig_map.update_traces(
+    marker_opacity=0.95
+)
 
 fig_map.update_layout(
     mapbox=dict(
