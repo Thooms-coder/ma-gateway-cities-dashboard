@@ -118,12 +118,8 @@ gateway_names = set(
 # Map Section
 # --------------------------------------------------
 
-selected_city = st.selectbox(
-    "Select City",
-    cities["place_name"],
-    label_visibility="collapsed"
-)
-
+# Default selection (first city)
+selected_city = cities["place_name"].iloc[0]
 selected_city_norm = normalize(selected_city)
 
 locations = []
@@ -226,6 +222,15 @@ fig_map.update_layout(
 )
 
 st.plotly_chart(fig_map, use_container_width=True)
+
+selected_city = st.selectbox(
+    "Select City",
+    cities["place_name"],
+    index=cities["place_name"].tolist().index(selected_city),
+    label_visibility="collapsed"
+)
+
+selected_city_norm = normalize(selected_city)
 
 # --------------------------------------------------
 # Data Section
