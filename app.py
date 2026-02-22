@@ -84,12 +84,14 @@ with st.sidebar:
 
 st.markdown("""
 <div class="hero">
-    <h1>Gateway Cities</h1>
-    <div class="accent-line"></div>
-    <p>
-    A longitudinal investigation of immigration patterns,
-    economic transformation, and structural inequality across Massachusetts.
-    </p>
+    <div class="hero-inner">
+        <h1>Gateway Cities</h1>
+        <div class="accent-line"></div>
+        <p>
+        A longitudinal investigation of immigration patterns,
+        economic transformation, and structural inequality across Massachusetts.
+        </p>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
