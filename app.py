@@ -434,18 +434,24 @@ with st.container():
     st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
     st.markdown("### Demographic Origins")
 
+    # Always use the primary city from the search bar
     primary_city = selected_cities[0]
     primary_fips = selected_fips[primary_city]
 
-    # Get latest available year from already-fetched data
-    df_primary = city_data[primary_city]["fb"]
+    # Get latest available year directly from the country table
+    from src.queries import run_query
 
-    if not df_primary.empty:
-        latest_year = df_primary["year"].max()
-    else:
-        latest_year = None
-    
-    if latest_year is not None:
+    year_query = """
+        SELECT MAX(year) AS max_year
+        FROM foreign_born_by_country
+        WHERE place_fips::text = :place_fips
+    """
+
+    year_df = run_query(year_query, {"place_fips": primary_fips})
+
+    if not year_df.empty and year_df["max_year"].iloc[0] is not None:
+        latest_year = int(year_df["max_year"].iloc[0])
+
         df_origins = get_foreign_born_by_country(primary_fips, latest_year)
 
         if not df_origins.empty:
@@ -476,9 +482,10 @@ with st.container():
             st.plotly_chart(fig_origins, use_container_width=True)
 
         else:
-            st.info(f"Country of origin breakdown unavailable for {primary_city}.")
+            st.info(f"No country-level breakdown available for {primary_city}.")
+
     else:
-        st.info(f"No foreign-born data available for {primary_city}.")
+        st.info(f"No origin data available for {primary_city}.")
 
 # ==================================================
 # SECTION 3: ECONOMIC INDICATORS
