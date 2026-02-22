@@ -506,6 +506,12 @@ with st.container():
 
             df_origins["country_label"] = df_origins["country_label"].replace(country_fixes)
 
+            # ADD THIS
+            valid_countries = {c.name for c in pycountry.countries}
+            df_origins = df_origins[
+                df_origins["country_label"].isin(valid_countries)
+            ]
+
             st.write("Countries being plotted:")
             st.write(df_origins["country_label"].unique())
             st.write("Row count:", len(df_origins))
