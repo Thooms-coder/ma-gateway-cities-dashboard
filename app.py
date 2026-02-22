@@ -79,19 +79,22 @@ load_css()
 
 components.html("""
 <script>
-document.addEventListener("DOMContentLoaded", function() {
+function initObserver() {
+    const sections = parent.document.querySelectorAll('.fade-section');
+
     const observer = new IntersectionObserver(entries => {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
-                entry.target.classList.add("visible");
+                entry.target.classList.add('visible');
             }
         });
     }, { threshold: 0.15 });
 
-    document.querySelectorAll(".fade-section").forEach(section => {
-        observer.observe(section);
-    });
-});
+    sections.forEach(section => observer.observe(section));
+}
+
+// Wait a moment for Streamlit to render DOM
+setTimeout(initObserver, 500);
 </script>
 """, height=0)
 
@@ -311,6 +314,8 @@ with st.container():
             </div>
             """, unsafe_allow_html=True)
 
+    st.markdown('</div>', unsafe_allow_html=True)
+    
 # ==================================================
 # SECTION 2: DEMOGRAPHIC ORIGINS
 # ==================================================
@@ -343,6 +348,8 @@ with st.container():
     else:
         st.info("Country of origin breakdown currently unavailable for this municipality.")
 
+    st.markdown('</div>', unsafe_allow_html=True)
+    
 # ==================================================
 # SECTION 3: ECONOMIC INDICATORS
 # ==================================================
@@ -367,6 +374,7 @@ with st.container():
             fig_pov.update_traces(line_color=COLOR_BASE, line_width=3)
             st.plotly_chart(fig_pov, use_container_width=True)
 
+    st.markdown('</div>', unsafe_allow_html=True)
 # ==================================================
 # SECTION 4: TRAJECTORY ANALYSIS
 # ==================================================
@@ -410,6 +418,8 @@ with st.container():
         )
         st.plotly_chart(fig_traj, use_container_width=True)
 
+    st.markdown('</div>', unsafe_allow_html=True)
+    
 # ==================================================
 # SECTION 5: METHODOLOGY
 # ==================================================
@@ -424,3 +434,4 @@ with st.container():
     <strong>3. Limitations:</strong> ACS 5-year estimates smooth out short-term volatility. Data represented here should be cross-referenced with local municipal records where applicable.
     </div>
     """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
