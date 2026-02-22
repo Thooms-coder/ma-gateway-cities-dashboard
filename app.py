@@ -10,7 +10,7 @@ from src.queries import (
 )
 
 # --------------------------------------------------
-# Page Config
+# Page Config (MUST be first Streamlit command)
 # --------------------------------------------------
 
 st.set_page_config(
@@ -44,11 +44,12 @@ def normalize(name):
     return str(name).strip().upper()
 
 # --------------------------------------------------
-# Compute Geo Bounds
+# Compute Geo Bounds (for tight centering)
 # --------------------------------------------------
 
 def get_geo_bounds(geojson):
-    lats, lons = [], []
+    lats = []
+    lons = []
 
     def extract_coords(coords):
         if isinstance(coords[0], list):
@@ -63,11 +64,8 @@ def get_geo_bounds(geojson):
 
     return min(lats), max(lats), min(lons), max(lons)
 
-@st.cache_data
-def compute_bounds(geojson):
-    return get_geo_bounds(geojson)
+min_lat, max_lat, min_lon, max_lon = get_geo_bounds(ma_geo)
 
-min_lat, max_lat, min_lon, max_lon = compute_bounds(ma_geo)
 center_lat = (min_lat + max_lat) / 2
 center_lon = (min_lon + max_lon) / 2
 
@@ -98,19 +96,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------
-# City Data (CACHE DB CALLS)
+# City Data
 # --------------------------------------------------
 
-@st.cache_data
-def load_cities():
-    return get_cities(gateway_only=False)
-
-@st.cache_data
-def load_gateway_cities():
-    return get_cities(gateway_only=True)
-
-cities = load_cities()
-gateway_cities = load_gateway_cities()
+cities = get_cities(gateway_only=False)
+gateway_cities = get_cities(gateway_only=True)
 
 gateway_names = set(
     normalize(
@@ -125,31 +115,44 @@ gateway_names = set(
 )
 
 # --------------------------------------------------
-# Prepare Locations Once
-# --------------------------------------------------
-
-locations = [f["properties"]["TOWN"] for f in ma_geo["features"]]
-
-# --------------------------------------------------
-# Map Section (Map Above Dropdown)
+# Map Section
 # --------------------------------------------------
 
 # Default selection (first city)
 selected_city = cities["place_name"].iloc[0]
 selected_city_norm = normalize(selected_city)
 
-# Compute z values ONCE
+locations = []
 z_values = []
-for town_name in locations:
-    town_norm = normalize(town_name)
-    if town_norm == selected_city_norm:
+
+for feature in ma_geo["features"]:
+    town_name = feature["properties"]["TOWN"]
+    locations.append(town_name)
+
+    if normalize(town_name) == selected_city_norm:
         z_values.append(2)
-    elif town_norm in gateway_names:
+    elif normalize(town_name) in gateway_names:
         z_values.append(1)
     else:
         z_values.append(0)
+fig_map = go.Figure()
+# --------------------------------------------------
+# Single Choropleth — Categorical Highlight
+# --------------------------------------------------
 
-# Build the figure (DO NOT cache plotly fig — it slows down)
+z_values = []
+
+for feature in ma_geo["features"]:
+    town_name = feature["properties"]["TOWN"]
+    town_norm = normalize(town_name)
+
+    if town_norm == selected_city_norm:
+        z_values.append(2)          # Selected
+    elif town_norm in gateway_names:
+        z_values.append(1)          # Gateway
+    else:
+        z_values.append(0)          # Normal
+
 fig_map = go.Figure(go.Choroplethmapbox(
     geojson=ma_geo,
     locations=locations,
@@ -170,21 +173,29 @@ fig_map = go.Figure(go.Choroplethmapbox(
     hovertemplate="<b>%{location}</b><extra></extra>"
 ))
 
+# --------------------------------------------------
 # Manual Legend
+# --------------------------------------------------
+
 fig_map.add_trace(go.Scattermapbox(
-    lat=[None], lon=[None],
+    lat=[None],
+    lon=[None],
     mode="markers",
     marker=dict(size=12, color="#111111"),
     name="Selected City"
 ))
+
 fig_map.add_trace(go.Scattermapbox(
-    lat=[None], lon=[None],
+    lat=[None],
+    lon=[None],
     mode="markers",
     marker=dict(size=12, color="#E10600"),
     name="Gateway City"
 ))
+
 fig_map.add_trace(go.Scattermapbox(
-    lat=[None], lon=[None],
+    lat=[None],
+    lon=[None],
     mode="markers",
     marker=dict(size=12, color="#e5e5e5"),
     name="Other Municipality"
@@ -194,7 +205,7 @@ fig_map.update_layout(
     mapbox=dict(
         style="white-bg",
         center=dict(lat=center_lat, lon=center_lon),
-        zoom=8.3,
+        zoom=8.3,   # adjust slightly if needed
     ),
     margin=dict(l=0, r=0, t=0, b=0),
     height=1050,
@@ -212,14 +223,10 @@ fig_map.update_layout(
 
 st.plotly_chart(fig_map, use_container_width=True)
 
-# --------------------------------------------------
-# Dropdown Below Map
-# --------------------------------------------------
-
 selected_city = st.selectbox(
     "Select City",
     cities["place_name"],
-    index=0,
+    index=cities["place_name"].tolist().index(selected_city),
     label_visibility="collapsed"
 )
 
