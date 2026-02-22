@@ -250,15 +250,28 @@ st.markdown("#### Economic Health & Poverty Status")
 st.markdown("Analyzing ACS Tables S1901 (Income) and S1701 (Poverty).")
 
 col_ts1, col_ts2 = st.columns(2)
+
 with col_ts1:
-    fig_inc = px.line(df_struct, x="year", y="median_income", title="Median Household Income Trajectory ($)")
-    fig_inc.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20), line_color="#111111")
-    st.plotly_chart(fig_inc, use_container_width=True)
+    if not df_struct.empty and "median_income" in df_struct.columns:
+        fig_inc = px.line(df_struct, x="year", y="median_income", title="Median Household Income Trajectory ($)")
+        # Layout handles the frame
+        fig_inc.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20))
+        # Traces handle the data lines
+        fig_inc.update_traces(line_color="#111111")
+        st.plotly_chart(fig_inc, use_container_width=True)
+    else:
+        st.info("Income data currently unavailable for this selection.")
 
 with col_ts2:
-    fig_pov = px.line(df_struct, x="year", y="poverty_rate", title="Poverty Rate Deviation (%)")
-    fig_pov.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20), line_color="#8b0000")
-    st.plotly_chart(fig_pov, use_container_width=True)
+    if not df_struct.empty and "poverty_rate" in df_struct.columns:
+        fig_pov = px.line(df_struct, x="year", y="poverty_rate", title="Poverty Rate Deviation (%)")
+        # Layout handles the frame
+        fig_pov.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20))
+        # Traces handle the data lines
+        fig_pov.update_traces(line_color="#8b0000")
+        st.plotly_chart(fig_pov, use_container_width=True)
+    else:
+        st.info("Poverty data currently unavailable for this selection.")
 
 st.markdown('</div>', unsafe_allow_html=True)
 
