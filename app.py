@@ -447,10 +447,11 @@ with st.container():
         latest_year = df_primary["year"].max()
     else:
         latest_year = None
-
+        
+    st.write("Primary FIPS:", primary_fips)
+    st.write("Latest Year from FB table:", latest_year)
+    
     if latest_year is not None:
-        st.write("Primary FIPS:", primary_fips)
-        st.write("Latest Year from FB table:", latest_year)
         df_origins = get_foreign_born_by_country(primary_fips, latest_year)
 
         if not df_origins.empty:
