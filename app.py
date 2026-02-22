@@ -179,6 +179,26 @@ with st.spinner("Loading map..."):
     st.plotly_chart(fig_map, use_container_width=True)
 
 # --------------------------------------------------
+# Default Selection
+# --------------------------------------------------
+
+selected_city = cities["place_name"].iloc[0]
+selected_city_norm = normalize(selected_city)
+
+# Compute dynamic z values
+z_values = []
+
+for town_name in locations:
+    town_norm = normalize(town_name)
+
+    if town_norm == selected_city_norm:
+        z_values.append(2)
+    elif town_norm in gateway_names:
+        z_values.append(1)
+    else:
+        z_values.append(0)
+
+# --------------------------------------------------
 # Dropdown Below Map
 # --------------------------------------------------
 
