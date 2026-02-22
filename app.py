@@ -168,7 +168,7 @@ with st.spinner("Loading map..."):
 
     fig_map.update_layout(
         mapbox=dict(
-            style="carto-positron",
+            style="white-bg",
             center=dict(lat=center_lat, lon=center_lon),
             zoom=8.3,
         ),
