@@ -262,17 +262,35 @@ df_fb = get_foreign_born_percent(place_fips)
 df_income = get_income_trend(place_fips)
 df_poverty = get_poverty_trend(place_fips)
 
-# Defensive merge
-df = (
+# Ensure numeric years
+df_fb["year"] = pd.to_numeric(df_fb["year"], errors="coerce")
+df_income["year"] = pd.to_numeric(df_income["year"], errors="coerce")
+df_poverty["year"] = pd.to_numeric(df_poverty["year"], errors="coerce")
+
+df_fb = df_fb.dropna(subset=["year"])
+df_income = df_income.dropna(subset=["year"])
+df_poverty = df_poverty.dropna(subset=["year"])
+
+# ---------------------------
+# Overlap for structural chart (needs all 3)
+# ---------------------------
+
+df_struct = (
     df_fb
     .merge(df_income, on="year", how="inner")
     .merge(df_poverty, on="year", how="inner")
     .sort_values("year")
 )
 
-if df.empty:
-    st.warning("Insufficient overlapping data for this city.")
-    st.stop()
+# ---------------------------
+# Overlap for scatter (needs 2)
+# ---------------------------
+
+df_scatter = (
+    df_fb
+    .merge(df_poverty, on="year", how="inner")
+    .sort_values("year")
+)
 
 # ---------------------------
 # Headline Metrics
