@@ -28,6 +28,10 @@ import streamlit as st
 from sqlalchemy import text
 from src.db import engine
 
+import streamlit as st
+
+st.write(st.secrets["DATABASE_URL"])
+
 st.title("Database Test")
 
 try:
