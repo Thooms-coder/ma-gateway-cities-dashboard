@@ -111,6 +111,18 @@ center_lat, center_lon = (min_lat + max_lat) / 2, (min_lon + max_lon) / 2
 cities = get_cities(gateway_only=False)
 gateway_cities = get_cities(gateway_only=True)
 
+# Build normalized town → FIPS lookup
+town_fips_map = {
+    normalize(
+        name.replace(", Massachusetts", "")
+            .replace(" city", "")
+            .replace(" City", "")
+            .replace(" Town", "")
+            .strip()
+    ): fips
+    for name, fips in zip(cities["place_name"], cities["place_fips"])
+}
+
 gateway_names = set(
     normalize(
         n.replace(", Massachusetts", "").replace(" city", "").replace(" City", "").replace(" Town", "").strip()
@@ -187,7 +199,7 @@ with st.container():
     st.markdown("### Geographic Context")
 
     @st.cache_data
-    def build_map(geojson, locations, gw_names, selected_norm, c_lat, c_lon):
+    def build_map(geojson, locations, gw_names, place_fips, c_lat, c_lon):
 
         z_values = []
         selected_index = None
@@ -195,7 +207,8 @@ with st.container():
         for i, town_name in enumerate(locations):
             town_norm = normalize(town_name)
 
-            if town_norm == selected_norm:
+            # Match by FIPS (correct, reliable match)
+            if town_norm in town_fips_map and town_fips_map[town_norm] == place_fips:
                 z_values.append(2)
                 selected_index = i
             elif town_norm in gw_names:
@@ -241,7 +254,7 @@ with st.container():
 
         return fig
 
-    fig_map = build_map(ma_geo, locations, gateway_names, selected_city_norm, center_lat, center_lon)
+    fig_map = build_map(ma_geo, locations, gateway_names, place_fips, center_lat, center_lon)
     map_event = st.plotly_chart(fig_map, use_container_width=True, on_select="rerun", key="map_select")
 
     st.markdown(f"""
