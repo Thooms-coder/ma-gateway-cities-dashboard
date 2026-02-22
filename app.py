@@ -117,20 +117,6 @@ gateway_names = set(
 locations = [f["properties"]["TOWN"] for f in ma_geo["features"]]
 
 # --------------------------------------------------
-# Single City Selector (ONLY ONE)
-# --------------------------------------------------
-
-selected_city = st.selectbox(
-    "Select City",
-    cities["place_name"],
-    index=0,
-    label_visibility="collapsed",
-    key="city_selector"
-)
-
-selected_city_norm = normalize(selected_city)
-
-# --------------------------------------------------
 # Build Map
 # --------------------------------------------------
 
@@ -202,8 +188,11 @@ def build_base_map(geojson, locations, center_lat, center_lon):
 base_fig = build_base_map(ma_geo, locations, center_lat, center_lon)
 
 # --------------------------------------------------
-# Apply Dynamic Highlighting
+# Show Map FIRST (before selector)
 # --------------------------------------------------
+
+selected_city = st.session_state.get("city_selector", cities["place_name"].iloc[0])
+selected_city_norm = normalize(selected_city)
 
 z_values = []
 for town_name in locations:
@@ -219,6 +208,20 @@ fig_map = base_fig
 fig_map.data[0].z = z_values
 
 st.plotly_chart(fig_map, use_container_width=True)
+
+# --------------------------------------------------
+# City Selector (NOW BELOW MAP)
+# --------------------------------------------------
+
+selected_city = st.selectbox(
+    "Select City",
+    cities["place_name"],
+    index=0,
+    label_visibility="collapsed",
+    key="city_selector"
+)
+
+selected_city_norm = normalize(selected_city)
 
 # --------------------------------------------------
 # Data Section
