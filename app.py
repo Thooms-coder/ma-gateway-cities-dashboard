@@ -382,8 +382,11 @@ with st.container():
         clicked_town = map_event["selection"]["points"][0]["location"]
         town_norm = normalize(clicked_town)
 
-        # right before the if town_norm in town_fips_map:
-        st.write("clicked_town:", clicked_town, "town_norm:", town_norm, "in_map:", town_norm in town_fips_map)
+        # --- DEBUG HERE ---
+        st.write("Clicked:", clicked_town)
+        st.write("Normalized:", town_norm)
+        st.write("Keys sample:", list(town_fips_map.keys())[:10])
+        st.write("Exists in lookup:", town_norm in town_fips_map)
 
         if (
             town_norm in town_fips_map and
