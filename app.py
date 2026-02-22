@@ -581,7 +581,13 @@ with st.container():
                     yanchor="bottom",
                     y=-0.15
                 ),
-                coloraxis_colorbar=dict(title="Population")
+                coloraxis_colorbar=dict(title="Population"),
+                hoverlabel=dict(
+                    bgcolor="#ffffff",
+                    font=dict(color="#2c2f33", family="Public Sans", size=14),
+                    bordercolor="#e1e4e8",
+                    align="left"
+                )
             )
 
             st.plotly_chart(fig_world, use_container_width=True)
@@ -616,7 +622,12 @@ with st.container():
                     y=df["median_income"],
                     mode="lines",
                     name=city,
-                    line=dict(width=3)
+                    line=dict(width=3),
+                    hovertemplate=(
+                        "<b>%{fullData.name}</b><br>"
+                        "Year: %{x}<br>"
+                        "Income: $%{y:,.0f}<extra></extra>"
+                    )
                 ))
 
         fig_inc.update_layout(
@@ -626,7 +637,13 @@ with st.container():
             yaxis_title="Median Household Income ($)",
             font=dict(family="Public Sans"),
             height=500,
-            legend=dict(title="")
+            legend=dict(title=""),
+            hoverlabel=dict(
+                bgcolor="#ffffff",
+                font=dict(color="#2c2f33", family="Public Sans", size=14),
+                bordercolor="#e1e4e8",
+                align="left"
+            )
         )
 
         st.plotly_chart(fig_inc, use_container_width=True)
@@ -646,7 +663,12 @@ with st.container():
                     y=df["poverty_rate"],
                     mode="lines",
                     name=city,
-                    line=dict(width=3)
+                    line=dict(width=3),
+                    hovertemplate=(
+                        "<b>%{fullData.name}</b><br>"
+                        "Year: %{x}<br>"
+                        "Poverty Rate: %{y:.1f}%<extra></extra>"
+                    )
                 ))
 
         fig_pov.update_layout(
@@ -656,7 +678,13 @@ with st.container():
             yaxis_title="Poverty Rate (%)",
             font=dict(family="Public Sans"),
             height=500,
-            legend=dict(title="")
+            legend=dict(title=""),
+            hoverlabel=dict(
+                bgcolor="#ffffff",
+                font=dict(color="#2c2f33", family="Public Sans", size=14),
+                bordercolor="#e1e4e8",
+                align="left"
+            )
         )
 
         st.plotly_chart(fig_pov, use_container_width=True)
@@ -704,7 +732,13 @@ with st.container():
         margin=dict(l=40, r=40, t=40, b=40),
         font=dict(family="Public Sans"),
         legend=dict(title="Municipality"),
-        height=550
+        height=550,
+        hoverlabel=dict(
+            bgcolor="#ffffff",
+            font=dict(color="#2c2f33", family="Public Sans", size=14),
+            bordercolor="#e1e4e8",
+            align="left"
+        )
     )
 
     st.plotly_chart(fig_traj, use_container_width=True)
