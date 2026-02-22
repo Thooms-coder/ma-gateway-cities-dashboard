@@ -359,9 +359,22 @@ with st.container():
 
     st.markdown(f"""
         <div class="map-legend">
-            <div class="legend-item"><span class="dot" style="background-color: {COLOR_TARGET};"></span> Target Municipality</div>
-            <div class="legend-item"><span class="dot" style="background-color: {COLOR_BASE};"></span> Gateway City Baseline</div>
-            <div class="legend-item"><span class="dot" style="background-color: #e9ecef; border: 1px solid #ccc;"></span> Rest of Commonwealth</div>
+            <div class="legend-item">
+                <span class="dot" style="background-color: {COLOR_TARGET};"></span>
+                Selected Municipality
+            </div>
+            <div class="legend-item">
+                <span class="dot" style="background-color: {COLOR_BOSTON};"></span>
+                Boston & Cambridge
+            </div>
+            <div class="legend-item">
+                <span class="dot" style="background-color: {COLOR_BASE};"></span>
+                Gateway Cities
+            </div>
+            <div class="legend-item">
+                <span class="dot" style="background-color: #E9ECEF; border: 1px solid #ccc;"></span>
+                Other Municipalities
+            </div>
         </div>
     """, unsafe_allow_html=True)
 
