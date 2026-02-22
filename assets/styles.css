@@ -10,18 +10,32 @@ header {visibility: hidden;}
     max-width: 100% !important;
 }
 
-/* Typography */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Inter:wght@400;500;600&display=swap');
+
 html, body {
     font-family: "Inter", sans-serif;
     background-color: #ffffff;
     color: #111111;
 }
 
-/* Hero animation container */
-.hero {
-    opacity: 0;
-    transform: translateY(30px);
-    animation: fadeUp 1.2s ease forwards;
+/* Hero Title */
+.hero h1 {
+    font-family: "Playfair Display", serif;
+    font-size: 3.8rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: 0.6rem;
+    line-height: 1.05;
+}
+
+/* Subtitle */
+.hero p {
+    font-family: "Inter", sans-serif;
+    font-size: 1.15rem;
+    font-weight: 400;
+    max-width: 720px;
+    color: #444444;
+    line-height: 1.6;
 }
 
 @keyframes fadeUp {
