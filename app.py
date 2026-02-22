@@ -2,6 +2,7 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 import json
+import numpy as np
 from src.queries import (
     get_cities,
     get_foreign_born_percent,
@@ -253,17 +254,130 @@ st.markdown('<div class="section">', unsafe_allow_html=True)
 
 place_fips = cities[cities["place_name"] == selected_city]["place_fips"].values[0]
 
-df_fb = get_foreign_born_percent(place_fips)
+# ---------------------------
+# Core Datasets
+# ---------------------------
 
-latest_percent = df_fb["foreign_born_percent"].iloc[-1]
-growth = (
-    (df_fb["foreign_born_percent"].iloc[-1] - df_fb["foreign_born_percent"].iloc[0])
-    / df_fb["foreign_born_percent"].iloc[0]
-) * 100
+df_fb = get_foreign_born_percent(place_fips)
+df_income = get_income_trend(place_fips)
+df_poverty = get_poverty_trend(place_fips)
+
+# Defensive merge
+df = (
+    df_fb
+    .merge(df_income, on="year", how="inner")
+    .merge(df_poverty, on="year", how="inner")
+    .sort_values("year")
+)
+
+if df.empty:
+    st.warning("Insufficient overlapping data for this city.")
+    st.stop()
+
+# ---------------------------
+# Headline Metrics
+# ---------------------------
+
+latest_percent = df["foreign_born_percent"].iloc[-1]
+
+start_val = df["foreign_born_percent"].iloc[0]
+end_val = df["foreign_born_percent"].iloc[-1]
+
+growth = ((end_val - start_val) / start_val) * 100 if start_val != 0 else np.nan
 
 m1, m2 = st.columns(2)
 m1.metric("Current Foreign-Born %", f"{latest_percent:.1f}%")
-m2.metric("Growth Since Start", f"{growth:.1f}%")
+m2.metric("Growth Since Start", f"{growth:.1f}%" if not np.isnan(growth) else "N/A")
+
+# ==================================================
+# 1️⃣ STRUCTURAL SHIFT (Indexed Comparison)
+# ==================================================
+
+df_indexed = df.copy()
+
+base_fb = df_indexed["foreign_born_percent"].iloc[0]
+base_inc = df_indexed["median_income"].iloc[0]
+base_pov = df_indexed["poverty_rate"].iloc[0]
+
+df_indexed["Immigration Index"] = (
+    df_indexed["foreign_born_percent"] / base_fb * 100
+    if base_fb != 0 else np.nan
+)
+
+df_indexed["Income Index"] = (
+    df_indexed["median_income"] / base_inc * 100
+    if base_inc != 0 else np.nan
+)
+
+df_indexed["Poverty Index"] = (
+    df_indexed["poverty_rate"] / base_pov * 100
+    if base_pov != 0 else np.nan
+)
+
+fig_struct = go.Figure()
+
+fig_struct.add_trace(go.Scatter(
+    x=df_indexed["year"],
+    y=df_indexed["Immigration Index"],
+    mode="lines+markers" if show_markers else "lines",
+    name="Immigration (Indexed)",
+    line=dict(color="#E10600")
+))
+
+fig_struct.add_trace(go.Scatter(
+    x=df_indexed["year"],
+    y=df_indexed["Income Index"],
+    mode="lines",
+    name="Income (Indexed)",
+    line=dict(color="#111111")
+))
+
+fig_struct.add_trace(go.Scatter(
+    x=df_indexed["year"],
+    y=df_indexed["Poverty Index"],
+    mode="lines",
+    name="Poverty (Indexed)",
+    line=dict(color="#888888")
+))
+
+fig_struct.update_layout(
+    template="plotly_white",
+    title=f"Structural Shift (Base Year = 100) — {selected_city}",
+    yaxis_title="Index (Base Year = 100)",
+    margin=dict(l=20, r=20, t=60, b=20)
+)
+
+st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+st.plotly_chart(fig_struct, use_container_width=True)
+st.markdown('</div>', unsafe_allow_html=True)
+
+# ==================================================
+# 2️⃣ IMMIGRATION vs POVERTY DYNAMIC RELATIONSHIP
+# ==================================================
+
+fig_scatter = px.scatter(
+    df,
+    x="foreign_born_percent",
+    y="poverty_rate",
+    color="year",
+    trendline="ols"
+)
+
+fig_scatter.update_layout(
+    template="plotly_white",
+    title=f"Immigration vs Poverty — {selected_city}",
+    xaxis_title="Foreign-Born %",
+    yaxis_title="Poverty Rate (%)",
+    margin=dict(l=20, r=20, t=60, b=20)
+)
+
+st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+st.plotly_chart(fig_scatter, use_container_width=True)
+st.markdown('</div>', unsafe_allow_html=True)
+
+# ==================================================
+# 3️⃣ RAW IMMIGRATION TREND (Original)
+# ==================================================
 
 fig_fb = px.line(
     df_fb,
@@ -278,8 +392,6 @@ if smooth_lines:
 fig_fb.update_layout(
     template="plotly_white",
     title=f"Foreign-Born Population (%) — {selected_city}",
-    font=dict(family="Inter"),
-    title_font=dict(size=20),
     margin=dict(l=20, r=20, t=60, b=20),
 )
 
@@ -287,9 +399,11 @@ st.markdown('<div class="chart-card">', unsafe_allow_html=True)
 st.plotly_chart(fig_fb, use_container_width=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
-if show_income:
-    df_income = get_income_trend(place_fips)
+# ==================================================
+# OPTIONAL: INCOME & POVERTY TOGGLES
+# ==================================================
 
+if show_income:
     fig_income = px.line(
         df_income,
         x="year",
@@ -297,14 +411,9 @@ if show_income:
         markers=show_markers,
     )
 
-    if smooth_lines:
-        fig_income.update_traces(line_shape="spline")
-
     fig_income.update_layout(
         template="plotly_white",
         title=f"Median Household Income — {selected_city}",
-        font=dict(family="Inter"),
-        title_font=dict(size=18),
     )
 
     st.markdown('<div class="chart-card">', unsafe_allow_html=True)
@@ -312,8 +421,6 @@ if show_income:
     st.markdown('</div>', unsafe_allow_html=True)
 
 if show_poverty:
-    df_poverty = get_poverty_trend(place_fips)
-
     fig_poverty = px.line(
         df_poverty,
         x="year",
@@ -321,14 +428,9 @@ if show_poverty:
         markers=show_markers,
     )
 
-    if smooth_lines:
-        fig_poverty.update_traces(line_shape="spline")
-
     fig_poverty.update_layout(
         template="plotly_white",
         title=f"Poverty Rate — {selected_city}",
-        font=dict(family="Inter"),
-        title_font=dict(size=18),
     )
 
     st.markdown('<div class="chart-card">', unsafe_allow_html=True)
