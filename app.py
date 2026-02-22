@@ -6,6 +6,7 @@ import json
 import numpy as np
 import pandas as pd
 import re
+import textwrap
 
 # --- Queries Import ---
 from src.queries import (
@@ -406,11 +407,11 @@ with st.container():
             )
         with col_lede:
             trend_word = "surged" if growth > 10 else "grown" if growth > 0 else "declined"
-            st.markdown(f"""
+            st.markdown(textwrap.dedent(f"""
             <div style="font-family: 'Lora', serif; font-size:1.15rem; line-height: 1.7; color: #333; padding: 10px 20px;">
             Over the observed period, the foreign-born population in <b>{st.session_state.selected_city}</b> has {trend_word} by {abs(growth):.1f}%, now representing {latest_percent:.1f}% of the total community. This demographic shift provides the foundation for examining localized economic transitions, housing pressures, and wealth distribution.
             </div>
-            """, unsafe_allow_html=True)
+            """), unsafe_allow_html=True)
 
 # ==================================================
 # SECTION 2: DEMOGRAPHIC ORIGINS
@@ -588,10 +589,10 @@ with st.container():
 with st.container():
     st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
     st.markdown("#### Data Responsibility & Methodology")
-    st.markdown("""
-    <div style="font-size: 0.9rem; line-height: 1.6; color: #586069;">
-    <strong>1. Transparency & Accuracy:</strong> All figures are derived directly from the U.S. Census American Community Survey (ACS) 5-Year Estimates. Margins of error (MOE) are preserved in the backend.<br><br>
-    <strong>2. Journalistic Framing:</strong> This platform avoids causal claims without rigorous statistical testing. Correlation visualized across demographic and economic panels is intended to surface trends for localized reporting, rather than draw definitive conclusions.<br><br>
+    st.markdown(textwrap.dedent("""<div style="font-size: 0.9rem; line-height: 1.6; color: #586069;">
+    <strong>1. Transparency & Accuracy:</strong> All figures are derived directly from the U.S. Census American Community Survey (ACS) 5-Year Estimates. Margins of error (MOE) are preserved in the backend.<br><br>"""), unsafe_allow_html=True)
+    st.link_button("Open gateway city report", "https://www.census.gov/programs-surveys/acs/data.html")
+    st.markdown(textwrap.dedent("""<strong>2. Journalistic Framing:</strong> This platform avoids causal claims without rigorous statistical testing. Correlation visualized across demographic and economic panels is intended to surface trends for localized reporting, rather than draw definitive conclusions.<br><br>
     <strong>3. Limitations:</strong> ACS 5-year estimates smooth out short-term volatility. Data represented here should be cross-referenced with local municipal records where applicable.
     </div>
-    """, unsafe_allow_html=True)
+    """), unsafe_allow_html=True)
