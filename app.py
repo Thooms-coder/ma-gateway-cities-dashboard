@@ -1,5 +1,6 @@
 import streamlit as st
 import streamlit.components.v1 as components
+from streamlit_aggrid import AgGrid #, GridOptionsBuilder, GridUpdateMode
 import plotly.express as px
 import plotly.graph_objects as go
 import json
@@ -601,7 +602,15 @@ with st.container():
     st.plotly_chart(fig_traj, use_container_width=True)
 
 # ==================================================
-# SECTION 5: METHODOLOGY
+# SECTION 5: Tables
+# ==================================================
+
+with st.container():
+    st.markdown('Our Data')
+AgGrid(, fit_columns_on_grid_load=True)
+
+# ==================================================
+# SECTION 6: METHODOLOGY
 # ==================================================
 with st.container():
     st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
