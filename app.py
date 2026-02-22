@@ -123,8 +123,6 @@ locations = [f["properties"]["TOWN"] for f in ma_geo["features"]]
 @st.cache_resource
 def build_base_map(geojson, locations, center_lat, center_lon):
     fig = go.Figure(go.Choroplethmapbox(
-        selected=dict(marker=dict(line=dict(width=3, color="black"))),
-        unselected=dict(marker=dict(opacity=0.6)),
         geojson=geojson,
         locations=locations,
         z=[0] * len(locations),
