@@ -129,41 +129,61 @@ for feature in ma_geo["features"]:
         z_values.append(1)
     else:
         z_values.append(0)
+fig_map = go.Figure()
 
-color_map = {
-    "normal": "#e5e5e5",   # muted background
-    "gateway": "#E10600",  # strong red
-    "selected": "#111111", # black
-}
+# --------------------------------------------------
+# 1️⃣ Base Layer — All Municipalities (Muted Gray)
+# --------------------------------------------------
 
-fill_colors = []
-
-for feature in ma_geo["features"]:
-    town_name = feature["properties"]["TOWN"]
-    town_norm = normalize(town_name)
-
-    if town_norm == selected_city_norm:
-        fill_colors.append(color_map["selected"])
-    elif town_norm in gateway_names:
-        fill_colors.append(color_map["gateway"])
-    else:
-        fill_colors.append(color_map["normal"])
-
-fig_map = go.Figure(go.Choroplethmapbox(
+fig_map.add_trace(go.Choroplethmapbox(
     geojson=ma_geo,
     locations=locations,
-    z=[1] * len(locations),   # dummy values
+    z=[0] * len(locations),
     featureidkey="properties.TOWN",
-    colorscale=[[0, "white"], [1, "white"]],  # neutral base
+    colorscale=[[0, "#e5e5e5"], [1, "#e5e5e5"]],
     showscale=False,
-    marker=dict(
-        line=dict(width=0.8, color="#bbbbbb")
-    ),
-    hovertemplate="<b>%{location}</b><extra></extra>",
+    marker_line_width=0.6,
+    marker_line_color="#bbbbbb",
+    hoverinfo="skip"
 ))
 
-# Inject explicit fill colors
-fig_map.data[0].marker.colors = fill_colors
+# --------------------------------------------------
+# 2️⃣ Gateway Cities Layer (Red)
+# --------------------------------------------------
+
+gateway_locations = [
+    f["properties"]["TOWN"]
+    for f in ma_geo["features"]
+    if normalize(f["properties"]["TOWN"]) in gateway_names
+]
+
+fig_map.add_trace(go.Choroplethmapbox(
+    geojson=ma_geo,
+    locations=gateway_locations,
+    z=[1] * len(gateway_locations),
+    featureidkey="properties.TOWN",
+    colorscale=[[0, "#E10600"], [1, "#E10600"]],
+    showscale=False,
+    marker_line_width=0.8,
+    marker_line_color="#ffffff",
+    hovertemplate="<b>%{location}</b><extra></extra>"
+))
+
+# --------------------------------------------------
+# 3️⃣ Selected City Layer (Black)
+# --------------------------------------------------
+
+fig_map.add_trace(go.Choroplethmapbox(
+    geojson=ma_geo,
+    locations=[selected_city],
+    z=[1],
+    featureidkey="properties.TOWN",
+    colorscale=[[0, "#111111"], [1, "#111111"]],
+    showscale=False,
+    marker_line_width=1.2,
+    marker_line_color="#ffffff",
+    hovertemplate="<b>%{location}</b><extra></extra>"
+))
 
 fig_map.update_layout(
     mapbox=dict(
