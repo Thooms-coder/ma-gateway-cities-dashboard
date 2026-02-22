@@ -138,7 +138,7 @@ gateway_names = set(
 )
 
 locations = [f["properties"]["TOWN"] for f in ma_geo["features"]]
-city_options = cities["place_name"].tolist()
+city_options = gateway_cities["place_name"].tolist()
 
 # Keep this for your lede text; ensure it stays in sync with actual primary selection
 if "selected_city" not in st.session_state:
@@ -313,9 +313,14 @@ with st.container():
             new_fips = town_fips_map[town_norm]
             new_city = cities[cities["place_fips"] == new_fips]["place_name"].iloc[0]
 
-            if new_city not in selected_cities:
-                st.session_state["selected_cities"] = [new_city]
-                st.session_state.selected_city = new_city  # keep lede consistent
+            if new_city not in st.session_state["selected_cities"]:
+                if len(st.session_state["selected_cities"]) < 3:
+                    st.session_state["selected_cities"].append(new_city)
+                else:
+                    st.session_state["selected_cities"] = [
+                        st.session_state["selected_cities"][0],
+                        new_city
+                    ]
                 st.rerun()
 
     st.markdown('<hr style="border: 0; border-top: 1px solid #e1e4e8; margin: 30px 0;">', unsafe_allow_html=True)
