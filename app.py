@@ -465,23 +465,38 @@ with st.container():
             df_origins["foreign_born"] = pd.to_numeric(
                 df_origins["foreign_born"], errors="coerce"
             )
-
             df_origins = df_origins.dropna(subset=["foreign_born"])
 
-            # Remove non-country aggregate labels
+            # Remove aggregate labels
             df_origins = df_origins[
                 ~df_origins["country_label"].str.contains(
                     "Other|n.e.c|Stateless", case=False, na=False
                 )
             ]
 
-            # Remove parenthetical qualifiers (e.g. China (excluding Hong Kong))
+            # Remove parentheses
             df_origins["country_label"] = (
                 df_origins["country_label"]
                 .str.replace(r"\s*\(.*\)", "", regex=True)
             )
 
-            # Choropleth base
+            # Fix common naming mismatches
+            country_fixes = {
+                "Congo (Democratic Republic)": "Democratic Republic of the Congo",
+                "Congo (Republic)": "Republic of the Congo",
+                "Korea": "South Korea",
+                "Burma": "Myanmar",
+                "Czech Republic": "Czechia",
+                "Russia": "Russian Federation",
+                "Iran": "Iran, Islamic Republic of",
+                "Venezuela": "Venezuela, Bolivarian Republic of"
+            }
+
+            df_origins["country_label"] = df_origins["country_label"].replace(country_fixes)
+
+            # --------------------------------
+            # Base Choropleth
+            # --------------------------------
             fig_world = px.choropleth(
                 df_origins,
                 locations="country_label",
@@ -493,35 +508,65 @@ with st.container():
                 title=f"{primary_city} — Foreign-Born Population by Country ({latest_year})"
             )
 
-            # ----------------------------
-            # Add proportional bubble layer
-            # ----------------------------
+            # --------------------------------
+            # Bubble Overlay
+            # --------------------------------
 
-            # Normalize marker size (log scaling improves readability)
-            df_origins["marker_size"] = np.log1p(df_origins["foreign_born"]) * 5
+            # Log-scaled sizing
+            df_origins["marker_size"] = np.log1p(df_origins["foreign_born"]) * 4
 
             bubble_trace = go.Scattergeo(
                 locations=df_origins["country_label"],
                 locationmode="country names",
                 text=df_origins["country_label"],
+                customdata=df_origins["foreign_born"],
                 marker=dict(
                     size=df_origins["marker_size"],
-                    color="black",
-                    opacity=0.5,
-                    line=dict(width=0.5, color="white")
+                    color="rgba(255,255,255,0.75)",
+                    line=dict(width=1, color="black"),
                 ),
                 hovertemplate=(
                     "<b>%{text}</b><br>"
-                    "Population: %{marker.size:.0f}<extra></extra>"
+                    "Population: %{customdata:,}<extra></extra>"
                 ),
                 showlegend=False
             )
 
             fig_world.add_trace(bubble_trace)
 
+            # --------------------------------
+            # Bubble Size Legend
+            # --------------------------------
+            max_val = df_origins["foreign_born"].max()
+
+            legend_values = [
+                int(max_val * 0.1),
+                int(max_val * 0.4),
+                int(max_val * 0.8)
+            ]
+
+            for val in legend_values:
+                fig_world.add_trace(go.Scattergeo(
+                    lon=[None],
+                    lat=[None],
+                    marker=dict(
+                        size=np.log1p(val) * 4,
+                        color="rgba(255,255,255,0.75)",
+                        line=dict(width=1, color="black")
+                    ),
+                    name=f"{val:,}",
+                    showlegend=True
+                ))
+
             fig_world.update_layout(
                 margin=dict(l=0, r=0, t=40, b=0),
-                height=600,
+                height=650,
+                legend=dict(
+                    title="Bubble Size (Foreign-Born Count)",
+                    orientation="h",
+                    yanchor="bottom",
+                    y=-0.15
+                ),
                 coloraxis_colorbar=dict(title="Population")
             )
 
