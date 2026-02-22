@@ -207,7 +207,8 @@ for town_name in locations:
     else:
         z_values.append(0)
 
-fig_map = base_fig
+# Create a copy of the cached figure to prevent mutating the shared cache
+fig_map = go.Figure(base_fig)
 fig_map.data[0].z = z_values
 
 event = st.plotly_chart(
@@ -297,10 +298,10 @@ df_scatter = (
 # Headline Metrics
 # ---------------------------
 
-latest_percent = df["foreign_born_percent"].iloc[-1]
+latest_percent = df_fb["foreign_born_percent"].iloc[-1]
 
-start_val = df["foreign_born_percent"].iloc[0]
-end_val = df["foreign_born_percent"].iloc[-1]
+start_val = df_fb["foreign_born_percent"].iloc[0]
+end_val = df_fb["foreign_born_percent"].iloc[-1]
 
 growth = ((end_val - start_val) / start_val) * 100 if start_val != 0 else np.nan
 
@@ -312,7 +313,7 @@ m2.metric("Growth Since Start", f"{growth:.1f}%" if not np.isnan(growth) else "N
 # 1️⃣ STRUCTURAL SHIFT (Indexed Comparison)
 # ==================================================
 
-df_indexed = df.copy()
+df_indexed = df_struct.copy()
 
 base_fb = df_indexed["foreign_born_percent"].iloc[0]
 base_inc = df_indexed["median_income"].iloc[0]
@@ -375,7 +376,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 # ==================================================
 
 fig_scatter = px.scatter(
-    df,
+    df_scatter,
     x="foreign_born_percent",
     y="poverty_rate",
     color="year",
