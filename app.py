@@ -461,13 +461,30 @@ with st.container():
 
         if not df_origins.empty:
 
-            # Clean country names
-            df_origins["iso3"] = df_origins["country_label"].apply(country_to_iso3)
-            df_origins = df_origins.dropna(subset=["iso3"])
+            # Ensure numeric
+            df_origins["foreign_born"] = pd.to_numeric(
+                df_origins["foreign_born"], errors="coerce"
+            )
+
+            df_origins = df_origins.dropna(subset=["foreign_born"])
+
+            # Remove non-country aggregate labels
+            df_origins = df_origins[
+                ~df_origins["country_label"].str.contains(
+                    "Other|n.e.c|Stateless", case=False, na=False
+                )
+            ]
+
+            # Remove parenthetical qualifiers (e.g. China (excluding Hong Kong))
+            df_origins["country_label"] = (
+                df_origins["country_label"]
+                .str.replace(r"\s*\(.*\)", "", regex=True)
+            )
 
             fig_world = px.choropleth(
                 df_origins,
-                locations="iso3",
+                locations="country_label",
+                locationmode="country names",
                 color="foreign_born",
                 hover_name="country_label",
                 color_continuous_scale="viridis",
@@ -477,8 +494,8 @@ with st.container():
 
             fig_world.update_layout(
                 margin=dict(l=0, r=0, t=40, b=0),
-                coloraxis_colorbar=dict(title="Population"),
-                height=600
+                height=600,
+                coloraxis_colorbar=dict(title="Population")
             )
 
             st.plotly_chart(fig_world, use_container_width=True)
