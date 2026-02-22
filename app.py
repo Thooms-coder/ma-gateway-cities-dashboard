@@ -110,16 +110,14 @@ center_lat, center_lon = (min_lat + max_lat) / 2, (min_lon + max_lon) / 2
 # --------------------------------------------------
 # City Data Initialization
 # --------------------------------------------------
-cities = get_cities(gateway_only=False)
-gateway_cities = get_cities(gateway_only=True)
+cities = get_all_cities()
+gateway_fips = set(get_gateway_fips()["place_fips"])
 
-# Ensure consistent type for map lookup + query params
+# Ensure consistent type for lookup + query params
 if "place_fips" in cities.columns:
     cities["place_fips"] = cities["place_fips"].astype(str)
-if "place_fips" in gateway_cities.columns:
-    gateway_cities["place_fips"] = gateway_cities["place_fips"].astype(str)
 
-# Build normalized town → FIPS lookup
+# Build normalized town → FIPS lookup (ALL municipalities)
 town_fips_map = {
     normalize(
         name.replace(", Massachusetts", "")
@@ -131,14 +129,26 @@ town_fips_map = {
     for name, fips in zip(cities["place_name"], cities["place_fips"])
 }
 
+# Build gateway name set from gateway_fips
 gateway_names = set(
     normalize(
-        n.replace(", Massachusetts", "").replace(" city", "").replace(" City", "").replace(" Town", "").strip()
-    ) for n in gateway_cities["place_name"]
+        name.replace(", Massachusetts", "")
+            .replace(" city", "")
+            .replace(" City", "")
+            .replace(" Town", "")
+            .strip()
+    )
+    for name in cities[cities["place_fips"].isin(gateway_fips)]["place_name"]
 )
 
 locations = [f["properties"]["TOWN"] for f in ma_geo["features"]]
-city_options = gateway_cities["place_name"].tolist()
+
+# Dropdown shows ONLY gateway cities
+city_options = (
+    cities[cities["place_fips"].isin(gateway_fips)]["place_name"]
+    .sort_values()
+    .tolist()
+)
 
 # Keep this for your lede text; ensure it stays in sync with actual primary selection
 if "selected_city" not in st.session_state:

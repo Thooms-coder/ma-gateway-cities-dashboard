@@ -196,3 +196,19 @@ def get_foreign_born_growth_all():
         GROUP BY place_fips;
     """
     return run_query(query)
+
+def get_all_cities():
+    query = """
+        SELECT DISTINCT place_fips::text, place_name
+        FROM total_population
+        ORDER BY place_name;
+    """
+    return run_query(query)
+
+def get_gateway_fips():
+    query = """
+        SELECT place_fips::text
+        FROM gateway_cities
+        WHERE is_gateway_city = TRUE;
+    """
+    return run_query(query)
