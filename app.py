@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 import json
 import numpy as np
 import pandas as pd
+import re
 
 # --- Queries Import ---
 from src.queries import (
@@ -92,6 +93,14 @@ ma_geo = load_ma_map()
 def normalize(name):
     return str(name).strip().upper()
 
+def clean_place_label(name: str) -> str:
+    s = str(name).replace(", Massachusetts", "").strip()
+    # remove trailing 'city' or 'town' tokens regardless of case
+    s = re.sub(r"\b(city|town)\b", "", s, flags=re.IGNORECASE).strip()
+    # collapse double spaces after removals
+    s = re.sub(r"\s{2,}", " ", s)
+    return s
+
 def get_geo_bounds(geojson):
     lats, lons = [], []
     def extract_coords(coords):
@@ -120,25 +129,13 @@ if "place_fips" in cities.columns:
 
 # Build normalized town → FIPS lookup (ALL municipalities)
 town_fips_map = {
-    normalize(
-        name.replace(", Massachusetts", "")
-            .replace(" city", "")
-            .replace(" City", "")
-            .replace(" Town", "")
-            .strip()
-    ): fips
+    normalize(clean_place_label(name)): fips
     for name, fips in zip(cities["place_name"], cities["place_fips"])
 }
 
 # Build gateway name set from gateway_fips
 gateway_names = set(
-    normalize(
-        name.replace(", Massachusetts", "")
-            .replace(" city", "")
-            .replace(" City", "")
-            .replace(" Town", "")
-            .strip()
-    )
+    normalize(clean_place_label(name))
     for name in cities[cities["place_fips"].isin(gateway_fips)]["place_name"]
 )
 
