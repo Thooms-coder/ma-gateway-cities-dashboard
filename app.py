@@ -466,20 +466,22 @@ with st.container():
 
     year_df = run_query(year_query, {"place_fips": primary_fips})
 
-    if not year_df.empty and year_df["max_year"].iloc[0] is not None:
+    if not year_df.empty and pd.notna(year_df["max_year"].iloc[0]):
 
         latest_year = int(year_df["max_year"].iloc[0])
         df_origins = get_foreign_born_by_country(primary_fips, latest_year)
 
         if not df_origins.empty:
 
-            # Ensure numeric
+            # --------------------------------
+            # Clean numeric values
+            # --------------------------------
             df_origins["foreign_born"] = pd.to_numeric(
                 df_origins["foreign_born"], errors="coerce"
             )
             df_origins = df_origins.dropna(subset=["foreign_born"])
 
-            # Remove aggregate labels
+            # Remove aggregates
             df_origins = df_origins[
                 ~df_origins["country_label"].str.contains(
                     "Other|n.e.c|Stateless", case=False, na=False
@@ -490,6 +492,7 @@ with st.container():
             df_origins["country_label"] = (
                 df_origins["country_label"]
                 .str.replace(r"\s*\(.*\)", "", regex=True)
+                .str.strip()
             )
 
             # Fix common naming mismatches
@@ -500,105 +503,108 @@ with st.container():
                 "Burma": "Myanmar",
                 "Czech Republic": "Czechia",
                 "Russia": "Russian Federation",
-                "Iran": "Iran, Islamic Republic of",
-                "Venezuela": "Venezuela, Bolivarian Republic of"
+                "Iran": "Iran",
+                "Viet Nam": "Vietnam",
+                "Venezuela": "Venezuela"
             }
 
             df_origins["country_label"] = df_origins["country_label"].replace(country_fixes)
 
-            # ADD THIS
+            # --------------------------------
+            # Filter to sovereign countries only
+            # --------------------------------
             valid_countries = {c.name for c in pycountry.countries}
             df_origins = df_origins[
                 df_origins["country_label"].isin(valid_countries)
             ]
 
-            st.write("Countries being plotted:")
-            st.write(df_origins["country_label"].unique())
-            st.write("Row count:", len(df_origins))
+            if df_origins.empty:
+                st.info(f"No mappable sovereign country data available for {primary_city}.")
+            else:
 
-            # --------------------------------
-            # Base Choropleth
-            # --------------------------------
-            fig_world = px.choropleth(
-                df_origins,
-                locations="country_label",
-                locationmode="country names",
-                color="foreign_born",
-                hover_name="country_label",
-                color_continuous_scale="viridis",
-                projection="natural earth",
-                title=f"{primary_city} — Foreign-Born Population by Country ({latest_year})"
-            )
-
-            # --------------------------------
-            # Bubble Overlay
-            # --------------------------------
-
-            # Log-scaled sizing
-            df_origins["marker_size"] = np.log1p(df_origins["foreign_born"]) * 4
-
-            bubble_trace = go.Scattergeo(
-                locations=df_origins["country_label"],
-                locationmode="country names",
-                text=df_origins["country_label"],
-                customdata=df_origins["foreign_born"],
-                marker=dict(
-                    size=df_origins["marker_size"],
-                    color="rgba(255,255,255,0.75)",
-                    line=dict(width=1, color="black"),
-                ),
-                hovertemplate=(
-                    "<b>%{text}</b><br>"
-                    "Population: %{customdata:,}<extra></extra>"
-                ),
-                showlegend=False
-            )
-
-            fig_world.add_trace(bubble_trace)
-
-            # --------------------------------
-            # Bubble Size Legend
-            # --------------------------------
-            max_val = df_origins["foreign_born"].max()
-
-            legend_values = [
-                int(max_val * 0.1),
-                int(max_val * 0.4),
-                int(max_val * 0.8)
-            ]
-
-            for val in legend_values:
-                fig_world.add_trace(go.Scattergeo(
-                    lon=[None],
-                    lat=[None],
-                    marker=dict(
-                        size=np.log1p(val) * 4,
-                        color="rgba(255,255,255,0.75)",
-                        line=dict(width=1, color="black")
-                    ),
-                    name=f"{val:,}",
-                    showlegend=True
-                ))
-
-            fig_world.update_layout(
-                margin=dict(l=0, r=0, t=40, b=0),
-                height=650,
-                legend=dict(
-                    title="Bubble Size (Foreign-Born Count)",
-                    orientation="h",
-                    yanchor="bottom",
-                    y=-0.15
-                ),
-                coloraxis_colorbar=dict(title="Population"),
-                hoverlabel=dict(
-                    bgcolor="#ffffff",
-                    font=dict(color="#2c2f33", family="Public Sans", size=14),
-                    bordercolor="#e1e4e8",
-                    align="left"
+                # --------------------------------
+                # Base Choropleth
+                # --------------------------------
+                fig_world = px.choropleth(
+                    df_origins,
+                    locations="country_label",
+                    locationmode="country names",
+                    color="foreign_born",
+                    hover_name="country_label",
+                    color_continuous_scale="viridis",
+                    projection="natural earth",
+                    title=f"{primary_city} — Foreign-Born Population by Country ({latest_year})"
                 )
-            )
 
-            st.plotly_chart(fig_world, use_container_width=True)
+                # --------------------------------
+                # Bubble Overlay
+                # --------------------------------
+                df_origins["marker_size"] = np.log1p(df_origins["foreign_born"]) * 4
+
+                bubble_trace = go.Scattergeo(
+                    locations=df_origins["country_label"],
+                    locationmode="country names",
+                    text=df_origins["country_label"],
+                    customdata=df_origins["foreign_born"],
+                    marker=dict(
+                        size=df_origins["marker_size"],
+                        color="rgba(255,255,255,0.75)",
+                        line=dict(width=1, color="black"),
+                    ),
+                    hovertemplate=(
+                        "<b>%{text}</b><br>"
+                        "Population: %{customdata:,}<extra></extra>"
+                    ),
+                    showlegend=False
+                )
+
+                fig_world.add_trace(bubble_trace)
+
+                # --------------------------------
+                # Bubble Size Legend (Safe Scaling)
+                # --------------------------------
+                max_val = df_origins["foreign_born"].max()
+
+                if pd.notna(max_val) and max_val > 0:
+
+                    legend_values = [
+                        int(max_val * 0.1),
+                        int(max_val * 0.4),
+                        int(max_val * 0.8)
+                    ]
+
+                    for val in legend_values:
+                        fig_world.add_trace(go.Scattergeo(
+                            lon=[None],
+                            lat=[None],
+                            marker=dict(
+                                size=np.log1p(val) * 4,
+                                color="rgba(255,255,255,0.75)",
+                                line=dict(width=1, color="black")
+                            ),
+                            name=f"{val:,}",
+                            showlegend=True
+                        ))
+
+                fig_world.update_layout(
+                    margin=dict(l=0, r=0, t=40, b=0),
+                    height=650,
+                    legend=dict(
+                        title="Bubble Size (Foreign-Born Count)",
+                        orientation="h",
+                        yanchor="bottom",
+                        y=-0.15
+                    ),
+                    coloraxis_colorbar=dict(title="Population"),
+                    hoverlabel=dict(
+                        bgcolor="#ffffff",
+                        font=dict(color="#2c2f33", family="Public Sans", size=14),
+                        bordercolor="#e1e4e8",
+                        align="left"
+                    )
+                )
+
+                st.plotly_chart(fig_world, use_container_width=True)
 
         else:
             st.info(f"No country-level data available for {primary_city}.")
