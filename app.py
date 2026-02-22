@@ -130,27 +130,40 @@ for feature in ma_geo["features"]:
     else:
         z_values.append(0)
 
+color_map = {
+    "normal": "#e5e5e5",   # muted background
+    "gateway": "#E10600",  # strong red
+    "selected": "#111111", # black
+}
+
+fill_colors = []
+
+for feature in ma_geo["features"]:
+    town_name = feature["properties"]["TOWN"]
+    town_norm = normalize(town_name)
+
+    if town_norm == selected_city_norm:
+        fill_colors.append(color_map["selected"])
+    elif town_norm in gateway_names:
+        fill_colors.append(color_map["gateway"])
+    else:
+        fill_colors.append(color_map["normal"])
+
 fig_map = go.Figure(go.Choroplethmapbox(
     geojson=ma_geo,
     locations=locations,
-    z=z_values,
+    z=[1] * len(locations),   # dummy values
     featureidkey="properties.TOWN",
-    colorscale=[
-        [0.0, "#f5f5f5"],   # Non-gateway
-        [0.5, "#E10600"],   # Gateway
-        [1.0, "#111111"],   # Selected
-    ],
-    zmin=0,
-    zmax=2,
-    marker_line_width=1.2,
-    marker_line_color="white",
+    colorscale=[[0, "white"], [1, "white"]],  # neutral base
     showscale=False,
+    marker=dict(
+        line=dict(width=0.8, color="#bbbbbb")
+    ),
     hovertemplate="<b>%{location}</b><extra></extra>",
 ))
 
-fig_map.update_traces(
-    marker_opacity=0.95
-)
+# Inject explicit fill colors
+fig_map.data[0].marker.colors = fill_colors
 
 fig_map.update_layout(
     mapbox=dict(
