@@ -271,18 +271,33 @@ with st.container():
 
         z_values = []
         selected_index = None
+        line_widths = []
+        line_colors = []
 
         for i, town_name in enumerate(locations):
             town_norm = normalize(town_name)
 
-            # Match by FIPS (correct, reliable match)
-            if town_norm in town_fips_map_local and town_fips_map_local[town_norm] == place_fips:
+            # Selected municipality
+            if (
+                town_norm in town_fips_map_local and
+                town_fips_map_local[town_norm] == place_fips
+            ):
                 z_values.append(2)
                 selected_index = i
+                line_widths.append(3)
+                line_colors.append("#1f2933")
+
+            # Allowed comparison cities (Gateway + Boston + Cambridge)
             elif town_norm in allowed_names:
                 z_values.append(1)
+                line_widths.append(3)
+                line_colors.append("#1f2933")
+
+            # All other municipalities
             else:
                 z_values.append(0)
+                line_widths.append(0.8)
+                line_colors.append("rgba(60,65,75,0.4)")
 
         trace = go.Choroplethmapbox(
             geojson=geojson,
@@ -299,12 +314,16 @@ with st.container():
             zmin=0,
             zmax=2,
             showscale=False,
-            marker_line_width=1.2,
-            marker_line_color="rgba(60, 65, 75, 0.65)",
+            marker=dict(
+                line=dict(
+                    width=line_widths,
+                    color=line_colors
+                )
+            ),
             hovertemplate="<b>%{location}</b><extra></extra>",
             selectedpoints=[selected_index] if selected_index is not None else None,
             selected=dict(marker=dict(opacity=1)),
-            unselected=dict(marker=dict(opacity=0.7))
+            unselected=dict(marker=dict(opacity=0.75))
         )
 
         fig = go.Figure(trace)
