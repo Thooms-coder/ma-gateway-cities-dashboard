@@ -80,9 +80,44 @@ def get_income_trend(place_fips):
             NULLIF(REGEXP_REPLACE(estimate, '[^0-9.]', '', 'g'), '')::float AS median_income
         FROM income
         WHERE place_fips::text = :place_fips
-        AND variable_label ILIKE '%median%household%income%'
+        AND variable_label IN (
+            'Estimate_Households_Median_income_(dollars)', 
+            'Households_Estimate_Median_income_(dollars)'
+        )
         ORDER BY year;
     """
+    return run_query(query, {"place_fips": place_fips})
+
+
+# ---------------------------
+# Correlation Dataset Builder
+# ---------------------------
+
+def get_correlation_dataset(place_fips):
+    query = """
+        SELECT 
+            fb.year,
+            (fb.foreign_born_total::float / tp.total_pop::float) * 100 AS foreign_born_percent,
+            NULLIF(REGEXP_REPLACE(inc.estimate, '[^0-9.]', '', 'g'), '')::float AS median_income,
+            pov.poverty_rate::float AS poverty_rate
+        FROM foreign_born_total fb
+        JOIN total_population tp
+            ON fb.place_fips::text = tp.place_fips::text
+            AND fb.year = tp.year
+        JOIN income inc
+            ON fb.place_fips::text = inc.place_fips::text
+            AND fb.year = inc.year
+            AND inc.variable_label IN (
+                'Estimate_Households_Median_income_(dollars)', 
+                'Households_Estimate_Median_income_(dollars)'
+            )
+        JOIN poverty_status pov
+            ON fb.place_fips::text = pov.place_fips::text
+            AND fb.year = pov.year
+        WHERE fb.place_fips::text = :place_fips
+        ORDER BY fb.year;
+    """
+
     return run_query(query, {"place_fips": place_fips})
 
 
@@ -201,33 +236,3 @@ def get_foreign_born_growth_all():
     """
 
     return run_query(query)
-
-
-# ---------------------------
-# Correlation Dataset Builder
-# ---------------------------
-
-def get_correlation_dataset(place_fips):
-    # I updated this function too, because it also queried `income.estimate` directly!
-    query = """
-        SELECT 
-            fb.year,
-            (fb.foreign_born_total::float / tp.total_pop::float) * 100 AS foreign_born_percent,
-            NULLIF(REGEXP_REPLACE(inc.estimate, '[^0-9.]', '', 'g'), '')::float AS median_income,
-            pov.poverty_rate::float AS poverty_rate
-        FROM foreign_born_total fb
-        JOIN total_population tp
-            ON fb.place_fips::text = tp.place_fips::text
-            AND fb.year = tp.year
-        JOIN income inc
-            ON fb.place_fips::text = inc.place_fips::text
-            AND fb.year = inc.year
-            AND inc.variable_label ILIKE '%Median household income%'
-        JOIN poverty_status pov
-            ON fb.place_fips::text = pov.place_fips::text
-            AND fb.year = pov.year
-        WHERE fb.place_fips::text = :place_fips
-        ORDER BY fb.year;
-    """
-
-    return run_query(query, {"place_fips": place_fips})
