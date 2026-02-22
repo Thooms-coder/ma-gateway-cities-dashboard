@@ -124,6 +124,7 @@ locations = [f["properties"]["TOWN"] for f in ma_geo["features"]]
 # Cached Base Map (Static Geometry + Legend)
 # --------------------------------------------------
 
+@st.cache_data
 def build_base_map(geojson, locations, center_lat, center_lon):
     fig = go.Figure(go.Choroplethmapbox(
         geojson=geojson,
@@ -189,7 +190,6 @@ def build_base_map(geojson, locations, center_lat, center_lon):
 
     return fig
 
-
 # Build static base once
 base_fig = build_base_map(ma_geo, locations, center_lat, center_lon)
 
@@ -213,8 +213,8 @@ for town_name in locations:
     else:
         z_values.append(0)
 
-# Update cached base map safely
-fig_map = base_fig.copy()
+# Update cached base map
+fig_map = base_fig
 fig_map.data[0].z = z_values
 
 st.plotly_chart(fig_map, use_container_width=True)
