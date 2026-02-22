@@ -123,117 +123,19 @@ city_options = cities["place_name"].tolist()
 if "selected_city" not in st.session_state:
     st.session_state.selected_city = city_options[0]
 
+# --------------------------------------------------
+# Header & Control View
+# --------------------------------------------------
 st.markdown("""
-<style>
-
-/* --------------------------------------------------
-   Google Font Import
--------------------------------------------------- */
-@import url('https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700&family=Lora:wght@400;500&display=swap');
-
-/* --------------------------------------------------
-   Hero Section
--------------------------------------------------- */
-.hero {
-    text-align: center;
-    padding: 60px 20px 40px 20px;
-    max-width: 900px;
-    margin: 0 auto;
-
-    animation: fadeInUp 1.2s ease-out forwards;
-    opacity: 0;
-}
-
-.hero h1 {
-    font-family: 'Public Sans', sans-serif;
-    font-weight: 700;
-    font-size: 2.6rem;
-    color: #2c2f33;
-    margin-bottom: 10px;
-    letter-spacing: -0.5px;
-}
-
-.hero p {
-    font-family: 'Public Sans', sans-serif;
-    font-weight: 400;
-    font-size: 1.1rem;
-    color: #586069;
-    line-height: 1.6;
-    max-width: 700px;
-    margin: 0 auto;
-}
-
-/* Accent Line */
-.accent-line {
-    width: 70px;
-    height: 3px;
-    background: #005ab5;
-    margin: 20px auto;
-    border-radius: 2px;
-    animation: fadeIn 1.8s ease-out forwards;
-}
-
-/* --------------------------------------------------
-   Section Cards
--------------------------------------------------- */
-.section-card-marker {
-    display: none;
-}
-
-div[data-testid="stVerticalBlock"]:has(.section-card-marker) {
-    background: #ffffff;
-    padding: 35px;
-    border-radius: 2px;
-    border: 1px solid #e1e4e8;
-    margin-bottom: 30px;
-}
-
-/* --------------------------------------------------
-   Map Legend
--------------------------------------------------- */
-.map-legend {
-    display: flex;
-    gap: 25px;
-    justify-content: center;
-    padding: 15px 0;
-    font-size: 0.85rem;
-    font-family: "Public Sans", sans-serif;
-    color: #586069;
-}
-
-.legend-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.dot {
-    height: 12px;
-    width: 12px;
-    border-radius: 2px;
-    display: inline-block;
-}
-
-/* --------------------------------------------------
-   Fade Animations
--------------------------------------------------- */
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0px);
-    }
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-</style>
+<section class="hero">
+    <h1>Gateway Cities Investigative Dashboard</h1>
+    <div class="accent-line"></div>
+    <p>
+        A longitudinal analysis of immigration patterns, demographic transitions,
+        and structural economic shifts across Massachusetts municipalities.
+        Source: American Community Survey (ACS) 2010–2024.
+    </p>
+</section>
 """, unsafe_allow_html=True)
 
 col_search, col_export = st.columns([3, 1])
