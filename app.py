@@ -23,3 +23,16 @@ if city_fips:
     )
 
     st.plotly_chart(fig, use_container_width=True)
+    
+import streamlit as st
+from sqlalchemy import text
+from src.db import engine
+
+st.title("Database Test")
+
+try:
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT 1"))
+        st.success(f"Connected: {result.scalar()}")
+except Exception as e:
+    st.error(e)
