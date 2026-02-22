@@ -320,12 +320,14 @@ with st.container():
     """, unsafe_allow_html=True)
 
     if map_event and "selection" in map_event and map_event["selection"]["points"]:
-        clicked_town = map_event["selection"]["points"][0]["location"]
-        town_norm = normalize(clicked_town)
+        clicked_point = map_event["selection"]["points"][0]
+        clicked_index = clicked_point["pointIndex"]
+        clicked_feature = ma_geo["features"][clicked_index]
 
-        if town_norm in town_fips_map:
-            new_fips = town_fips_map[town_norm]
-            new_city = cities[cities["place_fips"] == new_fips]["place_name"].iloc[0]
+        geo_fips = str(clicked_feature["properties"]["TOWN_ID"])
+
+        if geo_fips in cities["place_fips"].values:
+            new_city = cities[cities["place_fips"] == geo_fips]["place_name"].iloc[0]
 
             if new_city not in st.session_state["selected_cities"]:
                 if len(st.session_state["selected_cities"]) < 3:
