@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import re
 import textwrap
+import pycountry
 
 # --- Queries Import ---
 from src.queries import (
@@ -101,6 +102,12 @@ def clean_place_label(name: str) -> str:
     s = re.sub(r"\s{2,}", " ", s)
     return s
 
+def country_to_iso3(name):
+    try:
+        return pycountry.countries.lookup(name).alpha_3
+    except:
+        return None
+    
 def get_geo_bounds(geojson):
     lats, lons = [], []
     def extract_coords(coords):
@@ -428,17 +435,15 @@ with st.container():
             """), unsafe_allow_html=True)
 
 # ==================================================
-# SECTION 2: DEMOGRAPHIC ORIGINS
+# SECTION 2: DEMOGRAPHIC ORIGINS (Choropleth)
 # ==================================================
 with st.container():
     st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
-    st.markdown("### Demographic Origins")
+    st.markdown("### Global Origins of Foreign-Born Population")
 
-    # Always use the primary city from the search bar
     primary_city = selected_cities[0]
     primary_fips = selected_fips[primary_city]
 
-    # Get latest available year directly from the country table
     from src.queries import run_query
 
     year_query = """
@@ -450,39 +455,36 @@ with st.container():
     year_df = run_query(year_query, {"place_fips": primary_fips})
 
     if not year_df.empty and year_df["max_year"].iloc[0] is not None:
-        latest_year = int(year_df["max_year"].iloc[0])
 
+        latest_year = int(year_df["max_year"].iloc[0])
         df_origins = get_foreign_born_by_country(primary_fips, latest_year)
 
         if not df_origins.empty:
-            df_origins_top = (
-                df_origins
-                .head(10)
-                .sort_values("foreign_born", ascending=True)
+
+            # Clean country names
+            df_origins["iso3"] = df_origins["country_label"].apply(country_to_iso3)
+            df_origins = df_origins.dropna(subset=["iso3"])
+
+            fig_world = px.choropleth(
+                df_origins,
+                locations="iso3",
+                color="foreign_born",
+                hover_name="country_label",
+                color_continuous_scale="viridis",
+                projection="natural earth",
+                title=f"{primary_city} — Foreign-Born Population by Country ({latest_year})"
             )
 
-            fig_origins = px.bar(
-                df_origins_top,
-                x="foreign_born",
-                y="country_label",
-                orientation='h',
-                title=f"Top 10 Origin Countries — {primary_city} ({latest_year})"
+            fig_world.update_layout(
+                margin=dict(l=0, r=0, t=40, b=0),
+                coloraxis_colorbar=dict(title="Population"),
+                height=600
             )
 
-            fig_origins.update_traces(marker_color=COLOR_TARGET)
-
-            fig_origins.update_layout(
-                template="plotly_white",
-                margin=dict(l=20, r=20, t=40, b=20),
-                xaxis_title="Population Estimate",
-                yaxis_title="",
-                font=dict(family="Public Sans", color=COLOR_TEXT)
-            )
-
-            st.plotly_chart(fig_origins, use_container_width=True)
+            st.plotly_chart(fig_world, use_container_width=True)
 
         else:
-            st.info(f"No country-level breakdown available for {primary_city}.")
+            st.info(f"No country-level data available for {primary_city}.")
 
     else:
         st.info(f"No origin data available for {primary_city}.")
