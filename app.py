@@ -28,24 +28,25 @@ def load_css():
 load_css()
 
 # --------------------------------------------------
-# Sidebar Customization Panel
+# Sidebar
 # --------------------------------------------------
 
 with st.sidebar:
-    st.header("Customize View")
+    st.markdown("### Display Options")
 
-    show_income = st.toggle("Show Income Trend", value=False)
-    show_poverty = st.toggle("Show Poverty Trend", value=False)
-    show_markers = st.toggle("Show Markers", value=True)
+    show_income = st.toggle("Income Trend", value=False)
+    show_poverty = st.toggle("Poverty Trend", value=False)
+    show_markers = st.toggle("Markers", value=True)
     smooth_lines = st.toggle("Smooth Lines", value=False)
 
 # --------------------------------------------------
-# Hero Landing Section
+# Hero Section (Fade-In)
 # --------------------------------------------------
 
 st.markdown("""
-<div class="hero fade-in">
+<div class="hero">
     <h1>Gateway Cities</h1>
+    <div class="accent-line"></div>
     <p>
     A longitudinal investigation of immigration patterns,
     economic transformation, and structural inequality across Massachusetts.
@@ -53,7 +54,11 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="section fade-in">', unsafe_allow_html=True)
+# --------------------------------------------------
+# Animated Content Section
+# --------------------------------------------------
+
+st.markdown('<div class="section">', unsafe_allow_html=True)
 
 # --------------------------------------------------
 # City Selector
@@ -61,10 +66,14 @@ st.markdown('<div class="section fade-in">', unsafe_allow_html=True)
 
 cities = get_cities(gateway_only=False)
 
-selected_city = st.selectbox(
-    "Select a City",
-    cities["place_name"]
-)
+col1, col2 = st.columns([2, 1])
+
+with col1:
+    selected_city = st.selectbox(
+        "Select City",
+        cities["place_name"],
+        label_visibility="collapsed"
+    )
 
 place_fips = cities[cities["place_name"] == selected_city]["place_fips"].values[0]
 
@@ -74,6 +83,19 @@ place_fips = cities[cities["place_name"] == selected_city]["place_fips"].values[
 
 df_fb = get_foreign_born_percent(place_fips)
 
+latest_percent = df_fb["foreign_born_percent"].iloc[-1]
+growth = (
+    (df_fb["foreign_born_percent"].iloc[-1] - df_fb["foreign_born_percent"].iloc[0])
+    / df_fb["foreign_born_percent"].iloc[0]
+) * 100
+
+# Metric Row
+m1, m2 = st.columns(2)
+
+m1.metric("Current Foreign-Born %", f"{latest_percent:.1f}%")
+m2.metric("Growth Since Start", f"{growth:.1f}%")
+
+# Chart
 fig_fb = px.line(
     df_fb,
     x="year",
@@ -85,15 +107,16 @@ if smooth_lines:
     fig_fb.update_traces(line_shape="spline")
 
 fig_fb.update_layout(
-    template="plotly_dark",
+    template="plotly_white",
     title=f"Foreign-Born Population (%) — {selected_city}",
     font=dict(family="Inter"),
-    title_font=dict(size=24),
-    hoverlabel=dict(bgcolor="#111111"),
-    margin=dict(l=40, r=40, t=60, b=40),
+    title_font=dict(size=20),
+    margin=dict(l=20, r=20, t=60, b=20),
 )
 
+st.markdown('<div class="chart-card">', unsafe_allow_html=True)
 st.plotly_chart(fig_fb, use_container_width=True)
+st.markdown('</div>', unsafe_allow_html=True)
 
 # --------------------------------------------------
 # Optional Economic Context
@@ -113,13 +136,15 @@ if show_income:
         fig_income.update_traces(line_shape="spline")
 
     fig_income.update_layout(
-        template="plotly_dark",
+        template="plotly_white",
         title=f"Median Household Income — {selected_city}",
         font=dict(family="Inter"),
-        title_font=dict(size=22),
+        title_font=dict(size=18),
     )
 
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     st.plotly_chart(fig_income, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 if show_poverty:
     df_poverty = get_poverty_trend(place_fips)
@@ -135,24 +160,26 @@ if show_poverty:
         fig_poverty.update_traces(line_shape="spline")
 
     fig_poverty.update_layout(
-        template="plotly_dark",
+        template="plotly_white",
         title=f"Poverty Rate — {selected_city}",
         font=dict(family="Inter"),
-        title_font=dict(size=22),
+        title_font=dict(size=18),
     )
 
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     st.plotly_chart(fig_poverty, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # --------------------------------------------------
-# Narrative Insight Block
+# Editorial Insight Block
 # --------------------------------------------------
 
 st.markdown("""
 ### Investigative Insight
 
 Use this interface to explore how foreign-born population growth aligns
-with structural economic indicators. Toggle contextual layers in the sidebar
-to surface correlations and divergences across time.
+with economic conditions across time. Toggle contextual layers to identify
+divergence, acceleration, or structural shifts.
 """)
 
 st.markdown('</div>', unsafe_allow_html=True)
