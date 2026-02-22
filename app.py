@@ -123,6 +123,8 @@ locations = [f["properties"]["TOWN"] for f in ma_geo["features"]]
 @st.cache_resource
 def build_base_map(geojson, locations, center_lat, center_lon):
     fig = go.Figure(go.Choroplethmapbox(
+        selected=dict(marker=dict(line=dict(width=3, color="black"))),
+        unselected=dict(marker=dict(opacity=0.6)),
         geojson=geojson,
         locations=locations,
         z=[0] * len(locations),
@@ -164,6 +166,7 @@ def build_base_map(geojson, locations, center_lat, center_lon):
     ))
 
     fig.update_layout(
+        clickmode="event+select",
         mapbox=dict(
             style="white-bg",
             center=dict(lat=center_lat, lon=center_lon),
@@ -207,7 +210,28 @@ for town_name in locations:
 fig_map = base_fig
 fig_map.data[0].z = z_values
 
-st.plotly_chart(fig_map, use_container_width=True)
+event = st.plotly_chart(
+    fig_map,
+    use_container_width=True,
+    on_select="rerun",
+    key="map"
+)
+
+# --------------------------------------------------
+# Handle Map Click Selection
+# --------------------------------------------------
+
+if event and "selection" in event and event["selection"]["points"]:
+    clicked_town = event["selection"]["points"][0]["location"]
+
+    # Find matching place_name
+    matched_city = cities[
+        cities["place_name"].str.upper().str.contains(clicked_town.upper())
+    ]
+
+    if not matched_city.empty:
+        st.session_state["city_selector"] = matched_city["place_name"].iloc[0]
+        st.rerun()
 
 # --------------------------------------------------
 # City Selector (NOW BELOW MAP)
