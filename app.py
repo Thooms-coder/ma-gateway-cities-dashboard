@@ -129,9 +129,9 @@ fig_map.update_layout(
     mapbox_zoom=7.8,  # tighter zoom
     mapbox_center={"lat": 42.25, "lon": -71.75},
     margin=dict(l=0, r=0, t=0, b=0),
-    height=750,
 )
 
+st.markdown('<div class="fullscreen-map">', unsafe_allow_html=True)
 st.plotly_chart(fig_map, use_container_width=True)
 st.markdown('</div>', unsafe_allow_html=True)
 

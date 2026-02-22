@@ -99,3 +99,13 @@ html, body {
 .chart-card:hover {
     box-shadow: 0 12px 30px rgba(0,0,0,0.08);
 }
+
+.fullscreen-map {
+    height: 85vh;           /* 85% of viewport height */
+}
+
+.fullscreen-map .js-plotly-plot,
+.fullscreen-map .plotly,
+.fullscreen-map div {
+    height: 85vh !important;
+}
