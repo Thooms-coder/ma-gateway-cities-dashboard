@@ -180,7 +180,7 @@ def build_map(geojson, locations, gw_names, selected_norm, c_lat, c_lon):
 
     fig.update_layout(
         clickmode="event+select",
-        mapbox=dict(style="light", center=dict(lat=c_lat, lon=c_lon), zoom=7.2),
+        mapbox=dict(style="white-bg", center=dict(lat=c_lat, lon=c_lon), zoom=7.2),
         margin=dict(l=0, r=0, t=0, b=0), height=450
     )
     return fig
