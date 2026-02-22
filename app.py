@@ -211,7 +211,7 @@ for town_name in locations:
     else:
         z_values.append(0)
 
-fig_map = base_fig.copy()
+fig_map = base_fig
 fig_map.data[0].z = z_values
 
 st.plotly_chart(fig_map, use_container_width=True)
