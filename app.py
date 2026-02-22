@@ -734,3 +734,10 @@ with st.container():
     <strong>3. Limitations:</strong> ACS 5-year estimates smooth out short-term volatility. Data represented here should be cross-referenced with local municipal records where applicable.
     </div>
     """), unsafe_allow_html=True)
+    
+# ==================================================
+# SECTION 7: CUSTOM QUERY
+# ==================================================
+with st.container():
+    st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
+    st.markdown("### Want to find something else?")
