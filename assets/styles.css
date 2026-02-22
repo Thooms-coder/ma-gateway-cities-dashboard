@@ -95,8 +95,8 @@ html, body {
 
 .block-container {
     padding: 0rem !important;
-    margin: 1rem !important;
-    max-width: 100% !important;
+    margin: 0rem !important;
+    max-width: 90% !important;
 }
 
 .fullscreen-map {
