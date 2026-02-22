@@ -8,7 +8,8 @@ import pandas as pd
 
 # --- Queries Import ---
 from src.queries import (
-    get_cities,
+    get_all_cities,
+    get_gateway_fips,
     get_foreign_born_percent,
     get_foreign_born_by_country,
     get_income_trend,
