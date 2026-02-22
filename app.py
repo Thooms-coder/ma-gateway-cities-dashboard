@@ -172,7 +172,7 @@ with tab_demo:
             fig.update_layout(
                 clickmode="event+select",
                 mapbox=dict(style="white-bg", center=dict(lat=center_lat, lon=center_lon), zoom=7),
-                margin=dict(l=0, r=0, t=0, b=0), height=500,
+                margin=dict(l=0, r=0, t=0, b=0), height=700,
                 legend=dict(orientation="h", yanchor="bottom", y=0.02, xanchor="center", x=0.5, bgcolor="rgba(255,255,255,0.9)")
             )
             return fig
