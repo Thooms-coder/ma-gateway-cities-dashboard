@@ -69,14 +69,17 @@ def get_foreign_born_percent(place_fips):
 def get_foreign_born_by_country(place_fips, year):
     query = """
         SELECT 
-            country_label,
+            country_label_estimate AS country_label,
             NULLIF(REGEXP_REPLACE(estimate, '[^0-9.]', '', 'g'), '')::float AS foreign_born
         FROM foreign_born_by_country
         WHERE place_fips::text = :place_fips
         AND year = :year
         ORDER BY foreign_born DESC;
     """
-    return run_query(query, {"place_fips": place_fips, "year": year})
+    return run_query(query, {
+        "place_fips": place_fips,
+        "year": year
+    })
 
 # ---------------------------
 # Economic Indicators
