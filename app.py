@@ -287,13 +287,6 @@ df_struct = (
     .reset_index(drop=True)
 )
 
-# --- TEMPORARY DEBUGGING BLOCK ---
-with st.expander("🛠️ Debug: Raw City Data"):
-    st.write("Foreign Born Data:", df_fb)
-    st.write("Income Data:", df_income)
-    st.write("Poverty Data:", df_poverty)
-# ---------------------------------
-
 if len(df_struct) > 0:
     df_struct["foreign_born_percent"] = df_struct["foreign_born_percent"].interpolate(method="linear", limit_direction="both")
     df_struct["median_income"] = df_struct["median_income"].interpolate(method="linear", limit_direction="both")
