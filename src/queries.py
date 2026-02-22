@@ -80,10 +80,9 @@ def get_income_trend(place_fips):
             estimate::float AS median_income
         FROM income
         WHERE place_fips::text = :place_fips
-        AND variable_label ILIKE '%Median household income%'
+        AND variable_label ILIKE '%median%household%income%'
         ORDER BY year;
     """
-
     return run_query(query, {"place_fips": place_fips})
 
 
