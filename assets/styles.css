@@ -4,8 +4,10 @@ footer {visibility: hidden;}
 header {visibility: hidden;}
 
 .block-container {
-    padding-top: 3rem;
-    max-width: 1100px;
+    padding-top: 2rem;
+    padding-left: 2rem;
+    padding-right: 2rem;
+    max-width: 100% !important;
 }
 
 /* Typography */
