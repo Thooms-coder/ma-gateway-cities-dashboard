@@ -59,7 +59,7 @@ def get_foreign_born_by_country(place_fips, year):
     query = """
         SELECT 
             country_label,
-            estimate::float AS foreign_born
+            NULLIF(REGEXP_REPLACE(estimate, '[^0-9.]', '', 'g'), '')::float AS foreign_born
         FROM foreign_born_by_country
         WHERE place_fips::text = :place_fips
         AND year = :year
@@ -77,7 +77,7 @@ def get_income_trend(place_fips):
     query = """
         SELECT 
             year,
-            estimate::float AS median_income
+            NULLIF(REGEXP_REPLACE(estimate, '[^0-9.]', '', 'g'), '')::float AS median_income
         FROM income
         WHERE place_fips::text = :place_fips
         AND variable_label ILIKE '%median%household%income%'
@@ -176,6 +176,8 @@ def get_owner_renter_breakdown(place_fips, year):
 # ---------------------------
 
 def compute_growth(df, value_col):
+    if df.empty or len(df) < 2:
+        return None
     df = df.sort_values("year")
     start = df[value_col].iloc[0]
     end = df[value_col].iloc[-1]
@@ -206,11 +208,12 @@ def get_foreign_born_growth_all():
 # ---------------------------
 
 def get_correlation_dataset(place_fips):
+    # I updated this function too, because it also queried `income.estimate` directly!
     query = """
         SELECT 
             fb.year,
             (fb.foreign_born_total::float / tp.total_pop::float) * 100 AS foreign_born_percent,
-            inc.estimate::float AS median_income,
+            NULLIF(REGEXP_REPLACE(inc.estimate, '[^0-9.]', '', 'g'), '')::float AS median_income,
             pov.poverty_rate::float AS poverty_rate
         FROM foreign_born_total fb
         JOIN total_population tp
