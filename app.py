@@ -3,6 +3,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import json
 import numpy as np
+import pandas as pd
 from src.queries import (
     get_cities,
     get_foreign_born_percent,
