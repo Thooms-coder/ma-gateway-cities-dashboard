@@ -159,7 +159,7 @@ fig_map.update_layout(
         ),
     ),
     margin=dict(l=0, r=0, t=0, b=0),
-    height=1100
+    height=1200
 )
 
 st.plotly_chart(fig_map, use_container_width=True)
