@@ -151,15 +151,18 @@ fig_map = go.Figure(go.Choroplethmapbox(
 fig_map.update_layout(
     mapbox=dict(
         style="white-bg",
-        center=dict(lat=center_lat, lon=center_lon),
-        zoom=7.6  # Slightly wider to avoid clipping Cape
+        bounds=dict(
+            west=min_lon,
+            east=max_lon,
+            south=min_lat,
+            north=max_lat,
+        ),
     ),
     margin=dict(l=0, r=0, t=0, b=0),
+    height=900
 )
 
-st.markdown('<div class="fullscreen-map">', unsafe_allow_html=True)
 st.plotly_chart(fig_map, use_container_width=True)
-st.markdown('</div>', unsafe_allow_html=True)
 
 # --------------------------------------------------
 # Data Section

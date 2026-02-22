@@ -3,13 +3,6 @@
 footer {visibility: hidden;}
 header {visibility: hidden;}
 
-.block-container {
-    padding-top: 2rem;
-    padding-left: 2rem;
-    padding-right: 2rem;
-    max-width: 100% !important;
-}
-
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Inter:wght@400;500;600&display=swap');
 
 html, body {
@@ -100,14 +93,17 @@ html, body {
     box-shadow: 0 12px 30px rgba(0,0,0,0.08);
 }
 
+.block-container {
+    padding: 0rem !important;
+    margin: 0rem !important;
+    max-width: 100% !important;
+}
+
 .fullscreen-map {
-    height: 85vh;           /* 85% of viewport height */
+    height: 100vh;
 }
 
 .fullscreen-map .js-plotly-plot,
-.fullscreen-map .plotly,
-.fullscreen-map {
-    height: 92vh;
-    display: flex;
-    align-items: stretch;
+.fullscreen-map .plotly {
+    height: 100vh !important;
 }
