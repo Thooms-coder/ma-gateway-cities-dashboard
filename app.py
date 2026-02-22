@@ -189,34 +189,55 @@ with st.container():
     @st.cache_data
     def build_map(geojson, locations, gw_names, selected_norm, c_lat, c_lon):
         z_values = []
-        for town_name in locations:
+        selected_index = None
+
+        for i, town_name in enumerate(locations):
             town_norm = normalize(town_name)
+
             if town_norm == selected_norm:
                 z_values.append(2)
+                selected_index = i
             elif town_norm in gw_names:
                 z_values.append(1)
             else:
                 z_values.append(0)
 
-        fig = go.Figure(go.Choroplethmapbox(
-            geojson=geojson, locations=locations, z=z_values,
+        trace = go.Choroplethmapbox(
+            geojson=geojson,
+            locations=locations,
+            z=z_values,
             featureidkey="properties.TOWN",
             colorscale=[
-                [0.0, "#e9ecef"], [0.499, "#e9ecef"],
-                [0.5, COLOR_BASE], [0.999, COLOR_BASE],
+                [0.0, "#e9ecef"],
+                [0.499, "#e9ecef"],
+                [0.5, COLOR_BASE],
+                [0.999, COLOR_BASE],
                 [1.0, COLOR_TARGET]
             ],
-            zmin=0, zmax=2, showscale=False,
-            marker_line_width=0.5, marker_line_color="#ffffff",
-            hovertemplate="<b>%{location}</b><extra></extra>"
-        ))
+            zmin=0,
+            zmax=2,
+            showscale=False,
+            marker_line_width=0.5,
+            marker_line_color="#ffffff",
+            hovertemplate="<b>%{location}</b><extra></extra>",
+            selectedpoints=[selected_index] if selected_index is not None else None,
+            selected=dict(marker=dict(line=dict(width=3, color="#111111"))),
+            unselected=dict(marker=dict(opacity=0.85))
+        )
+
+        fig = go.Figure(trace)
 
         fig.update_layout(
             clickmode="event+select",
-            mapbox=dict(style="white-bg", center=dict(lat=c_lat, lon=c_lon), zoom=7.2),
+            mapbox=dict(
+                style="white-bg",
+                center=dict(lat=c_lat, lon=c_lon),
+                zoom=7.2
+            ),
             margin=dict(l=0, r=0, t=0, b=0),
             height=450
         )
+
         return fig
 
     fig_map = build_map(ma_geo, locations, gateway_names, selected_city_norm, center_lat, center_lon)
