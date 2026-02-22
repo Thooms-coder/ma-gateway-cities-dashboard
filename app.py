@@ -272,35 +272,25 @@ with st.container():
 
         z_values = []
         selected_index = None
-        line_widths = []
-        line_colors = []
 
+        # --------------------------
+        # Fill layer
+        # --------------------------
         for i, town_name in enumerate(locations):
             town_norm = normalize(town_name)
 
-            # Selected municipality
             if (
                 town_norm in town_fips_map_local and
                 town_fips_map_local[town_norm] == place_fips
             ):
                 z_values.append(2)
                 selected_index = i
-                line_widths.append(3)
-                line_colors.append("#1f2933")
-
-            # Allowed comparison cities (Gateway + Boston + Cambridge)
             elif town_norm in allowed_names:
                 z_values.append(1)
-                line_widths.append(3)
-                line_colors.append("#1f2933")
-
-            # All other municipalities
             else:
                 z_values.append(0)
-                line_widths.append(0.8)
-                line_colors.append("rgba(60,65,75,0.4)")
 
-        trace = go.Choroplethmapbox(
+        choropleth = go.Choroplethmapbox(
             geojson=geojson,
             locations=locations,
             z=z_values,
@@ -315,19 +305,52 @@ with st.container():
             zmin=0,
             zmax=2,
             showscale=False,
-            marker=dict(
-                line=dict(
-                    width=line_widths,
-                    color=line_colors
-                )
-            ),
             hovertemplate="<b>%{location}</b><extra></extra>",
             selectedpoints=[selected_index] if selected_index is not None else None,
             selected=dict(marker=dict(opacity=1)),
             unselected=dict(marker=dict(opacity=0.75))
         )
 
-        fig = go.Figure(trace)
+        fig = go.Figure(choropleth)
+
+        # --------------------------
+        # Outline overlay layer
+        # --------------------------
+        for feature in geojson["features"]:
+            town = feature["properties"]["TOWN"]
+            town_norm = normalize(town)
+
+            if town_norm in allowed_names:
+                geom = feature["geometry"]
+
+                if geom["type"] == "Polygon":
+                    coords = geom["coordinates"][0]
+                    lons = [pt[0] for pt in coords]
+                    lats = [pt[1] for pt in coords]
+
+                    fig.add_trace(go.Scattermapbox(
+                        lon=lons,
+                        lat=lats,
+                        mode="lines",
+                        line=dict(width=4, color="#1f2933"),
+                        hoverinfo="skip",
+                        showlegend=False
+                    ))
+
+                elif geom["type"] == "MultiPolygon":
+                    for polygon in geom["coordinates"]:
+                        coords = polygon[0]
+                        lons = [pt[0] for pt in coords]
+                        lats = [pt[1] for pt in coords]
+
+                        fig.add_trace(go.Scattermapbox(
+                            lon=lons,
+                            lat=lats,
+                            mode="lines",
+                            line=dict(width=4, color="#1f2933"),
+                            hoverinfo="skip",
+                            showlegend=False
+                        ))
 
         fig.update_layout(
             clickmode="event+select",
