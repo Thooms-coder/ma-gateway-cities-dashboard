@@ -188,6 +188,7 @@ with st.container():
 
     @st.cache_data
     def build_map(geojson, locations, gw_names, selected_norm, c_lat, c_lon):
+
         z_values = []
         selected_index = None
 
@@ -221,8 +222,8 @@ with st.container():
             marker_line_color="#ffffff",
             hovertemplate="<b>%{location}</b><extra></extra>",
             selectedpoints=[selected_index] if selected_index is not None else None,
-            selected=dict(marker=dict(line=dict(width=3, color="#111111"))),
-            unselected=dict(marker=dict(opacity=0.85))
+            selected=dict(marker=dict(opacity=1)),
+            unselected=dict(marker=dict(opacity=0.7))
         )
 
         fig = go.Figure(trace)
