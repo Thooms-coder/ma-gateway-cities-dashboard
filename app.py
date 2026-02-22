@@ -95,9 +95,7 @@ def normalize(name):
 
 def clean_place_label(name: str) -> str:
     s = str(name).replace(", Massachusetts", "").strip()
-    # remove trailing 'city' or 'town' tokens regardless of case
     s = re.sub(r"\b(city|town)\b", "", s, flags=re.IGNORECASE).strip()
-    # collapse double spaces after removals
     s = re.sub(r"\s{2,}", " ", s)
     return s
 
