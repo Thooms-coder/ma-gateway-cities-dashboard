@@ -5,7 +5,7 @@
 
 ## 1. Project Overview
 
-This project synthesizes **U.S. Census American Community Survey (ACS) 5-Year Estimates (2010–2024)** to analyze demographic and economic trends across:
+This project synthesizes **U.S. Census American Community Survey (ACS) 5-Year Estimates (2010–2024)** to assist journalists in the analysis of demographic and economic trends across:
 
 - 26 Massachusetts Gateway Cities (MassINC definition)
 - Comparison cities: Boston, Cambridge, Weymouth, Marlborough

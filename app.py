@@ -512,10 +512,9 @@ with st.container():
             fig_traj.add_trace(go.Scatter(
                 x=df["foreign_born_percent"],
                 y=df["median_income"],
-                mode='lines+markers',
+                mode='markers',
                 name=city,
-                line=dict(width=2),
-                marker=dict(size=7),
+                marker=dict(size=8),
                 hovertemplate=(
                     "<b>%{text}</b><br>"
                     "Foreign-Born: %{x:.1f}%<br>"
