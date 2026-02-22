@@ -172,15 +172,18 @@ st.markdown("""
 
 col_search, col_export = st.columns([3, 1])
 with col_search:
+    available_options = sorted(
+        set(city_options + st.session_state.get("selected_cities", []))
+    )
+
     selected_cities = st.multiselect(
         "Compare Municipalities (Max 3)",
-        options=city_options,
-        default=[st.session_state.selected_city],
+        options=available_options,
+        default=st.session_state.get("selected_cities", [city_options[0]]),
         max_selections=3,
         key="selected_cities"
     )
 
-    # Guarantee at least one selection
     if not selected_cities:
         selected_cities = [city_options[0]]
 
