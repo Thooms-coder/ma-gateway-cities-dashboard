@@ -10,7 +10,7 @@ import re
 import textwrap
 import pycountry
 import requests
-import openai
+from openai import OpenAI
 
 # --- Queries Import ---
 from src.queries import (
