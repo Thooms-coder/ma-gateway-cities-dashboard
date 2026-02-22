@@ -1,5 +1,6 @@
 import streamlit as st
 import streamlit.components.v1 as components
+from st_aggrid import AgGrid #, GridOptionsBuilder, GridUpdateMode
 import plotly.express as px
 import plotly.graph_objects as go
 import json
@@ -700,7 +701,28 @@ with st.container():
     st.plotly_chart(fig_traj, use_container_width=True)
 
 # ==================================================
-# SECTION 5: METHODOLOGY
+# SECTION 5: Tables
+# ==================================================
+
+with st.container():
+    st.markdown('### Our Data')
+    st.markdown(f"#### Foreign-Born Population for {primary_city.split(',')[0]}")
+    df_fb = get_foreign_born_percent(fips)
+    df_fb.columns = df_fb.columns.str.replace("_", " ").str.title()
+    AgGrid(df_fb, fit_columns_on_grid_load=True)
+
+    st.markdown(f"#### Poverty Rate for {primary_city.split(',')[0]}")
+    df_pov = data.get("poverty", pd.DataFrame())
+    df_pov.columns = df_pov.columns.str.replace("_", " ").str.title()
+    AgGrid(df_pov, fit_columns_on_grid_load=True)
+
+    st.markdown(f"#### Income and Immigration for {primary_city.split(',')[0]}")
+    df_inc = data.get("struct", pd.DataFrame())
+    df_inc.columns = df_inc.columns.str.replace("_", " ").str.title()
+    AgGrid(df_inc, fit_columns_on_grid_load=True)
+
+# ==================================================
+# SECTION 6: METHODOLOGY
 # ==================================================
 with st.container():
     st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
