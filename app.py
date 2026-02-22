@@ -104,9 +104,10 @@ gateway_cities = get_cities(gateway_only=True)
 
 gateway_names = set(
     normalize(
-        n.replace(" city", "")
+        n.replace(", Massachusetts", "")
+         .replace(" city", "")
          .replace(" City", "")
-         .replace(" town", "")
+         .replace(" Town city", "")
          .replace(" Town", "")
          .strip()
     )
@@ -142,12 +143,6 @@ fig_map = go.Figure()
 # --------------------------------------------------
 # Single Choropleth — Categorical Highlight
 # --------------------------------------------------
-
-# Ensure names align
-gateway_names = set(
-    normalize(n.replace(" city", "").replace(" City", ""))
-    for n in gateway_cities["place_name"]
-)
 
 z_values = []
 
