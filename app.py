@@ -125,7 +125,7 @@ fig_map = go.Figure(go.Choroplethmapbox(
 ))
 
 fig_map.update_layout(
-    mapbox_style="carto-positron",
+    mapbox_style="white-bg",
     mapbox_zoom=7,
     mapbox_center={"lat": 42.3, "lon": -71.8},
     margin=dict(l=0, r=0, t=0, b=0),
