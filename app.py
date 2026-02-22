@@ -12,7 +12,7 @@ from src.queries import (
 )
 
 # --------------------------------------------------
-# Page Config (Sidebar Collapsed for full width layout)
+# Page Config 
 # --------------------------------------------------
 
 st.set_page_config(
@@ -108,8 +108,8 @@ st.markdown("""
     <h1>Gateway Cities Investigative Dashboard</h1>
     <div class="accent-line"></div>
     <p>
-    A longitudinal analysis of immigration patterns, structural economic shifts, 
-    and enforcement disparities across Massachusetts municipalities.
+    A longitudinal analysis of immigration patterns, demographic transitions, 
+    and structural economic shifts across Massachusetts municipalities.
     </p>
 </div>
 """, unsafe_allow_html=True)
@@ -119,18 +119,13 @@ st.markdown("""
 # --------------------------------------------------
 
 st.markdown("### Search Target Municipality")
+# Binding the selectbox directly to session_state using the key parameter
 selected_city = st.selectbox(
     "Target Municipality",
     options=city_options,
-    index=city_options.index(st.session_state.selected_city) if st.session_state.selected_city in city_options else 0,
     label_visibility="collapsed",
-    key="city_selector_box"
+    key="selected_city" 
 )
-
-# Sync state
-if selected_city != st.session_state.selected_city:
-    st.session_state.selected_city = selected_city
-    st.rerun()
 
 selected_city_norm = normalize(st.session_state.selected_city)
 place_fips = cities[cities["place_name"] == st.session_state.selected_city]["place_fips"].values[0]
@@ -139,9 +134,8 @@ place_fips = cities[cities["place_name"] == st.session_state.selected_city]["pla
 # Architecture: Multi-Tab Layout
 # --------------------------------------------------
 
-tab_demo, tab_justice, tab_ethics = st.tabs([
-    "Demographics & Structural Economy", 
-    "Immigration & Enforcement (DDP)", 
+tab_demo, tab_ethics = st.tabs([
+    "Demographics & Economy", 
     "Methodology & Ethics"
 ])
 
@@ -159,7 +153,6 @@ with tab_demo:
         
         @st.cache_resource
         def build_base_map(geojson, locations, center_lat, center_lon):
-            # Base Choropleth
             fig = go.Figure(go.Choroplethmapbox(
                 geojson=geojson, locations=locations, z=[0] * len(locations),
                 featureidkey="properties.TOWN",
@@ -168,14 +161,11 @@ with tab_demo:
                 hovertemplate="<b>%{location}</b><extra></extra>"
             ))
 
-            # Add Gateway Cities with Abbreviations
             gw_locs = [loc for loc in locations if normalize(loc) in gateway_names]
             gw_texts = [get_abbreviation(loc) for loc in gw_locs]
             
             fig.add_trace(go.Scattermapbox(
-                lat=[None]*len(gw_locs), lon=[None]*len(gw_locs), # Coords mapped via choropleth usually, but text needs lat/lon if using scatter.
-                # Note: For text overlay on choropleth regions without explicit lats/lons in scattermapbox, 
-                # we rely on the click selection. The markers here act as legend items.
+                lat=[None]*len(gw_locs), lon=[None]*len(gw_locs), 
                 mode="markers", marker=dict(size=10, color="#8b0000"), name="Gateway City"
             ))
 
@@ -204,11 +194,12 @@ with tab_demo:
 
         map_event = st.plotly_chart(fig_map, use_container_width=True, on_select="rerun", key="map_select")
         
-        # Handle map click to sync dropdown
+        # Handle map click to instantly sync dropdown
         if map_event and "selection" in map_event and map_event["selection"]["points"]:
             clicked_town = map_event["selection"]["points"][0]["location"]
             matched_city = cities[cities["place_name"].str.upper().str.contains(clicked_town.upper())]
-            if not matched_city.empty:
+            
+            if not matched_city.empty and matched_city["place_name"].iloc[0] != st.session_state.selected_city:
                 st.session_state.selected_city = matched_city["place_name"].iloc[0]
                 st.rerun()
 
@@ -231,7 +222,6 @@ with tab_demo:
             start_val = df_fb["foreign_born_percent"].iloc[0]
             growth = ((latest_percent - start_val) / start_val) * 100 if start_val != 0 else 0
             
-            # Dynamic Newsroom Alert embedded contextually
             if growth > 15:
                 st.warning(f"Rapid Demographic Shift: Foreign-born population expanded by {growth:.1f}%. Cross-reference housing capacity.")
             elif growth < 0:
@@ -246,7 +236,7 @@ with tab_demo:
             trend_word = "surged" if growth > 10 else "grown" if growth > 0 else "declined"
             st.markdown(f"""
             <div style="background:#f4f4f4; padding:15px; border-left:3px solid #111; margin-top:10px; font-size:0.95rem;">
-            <strong>Auto-Generated Lede:</strong> Over the observed period, the foreign-born population in {st.session_state.selected_city} has {trend_word} by {abs(growth):.1f}%, now representing {latest_percent:.1f}% of the total community. Investigative focus should track how this growth correlates with median income trajectories.
+            <strong>Auto-Generated Lede:</strong> Over the observed period, the foreign-born population in {st.session_state.selected_city} has {trend_word} by {abs(growth):.1f}%, now representing {latest_percent:.1f}% of the total community. Investigative focus should track how this growth correlates with median income and poverty trajectories.
             </div>
             """, unsafe_allow_html=True)
 
@@ -261,36 +251,37 @@ with tab_demo:
         fig_par = px.parallel_coordinates(
             df_struct, 
             color="year", 
-            dimensions=["year", "foreign_born_percent", "median_income", "poverty_rate"],
+            dimensions=[
+                dict(range=[min(df_struct["year"]), max(df_struct["year"])], label="Year", values=df_struct["year"]),
+                dict(range=[min(df_struct["foreign_born_percent"]), max(df_struct["foreign_born_percent"])], label="Foreign-Born %", values=df_struct["foreign_born_percent"]),
+                dict(range=[min(df_struct["median_income"]), max(df_struct["median_income"])], label="Median Income", values=df_struct["median_income"], tickformat=",.0f", tickprefix="$"),
+                dict(range=[min(df_struct["poverty_rate"]), max(df_struct["poverty_rate"])], label="Poverty Rate (%)", values=df_struct["poverty_rate"])
+            ],
             color_continuous_scale=px.colors.diverging.Tealrose,
-            labels={"year": "Year", "foreign_born_percent": "Foreign-Born %", "median_income": "Median Income ($)", "poverty_rate": "Poverty Rate (%)"}
         )
         fig_par.update_layout(margin=dict(l=40, r=40, t=40, b=20), height=400)
         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
         st.plotly_chart(fig_par, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
+        # --- Time-Series Section ---
+        st.markdown("#### Longitudinal Trends")
+        col_ts1, col_ts2 = st.columns(2)
+        
+        with col_ts1:
+            fig_inc = px.line(df_struct, x="year", y="median_income", title="Median Income Trend")
+            fig_inc.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20))
+            st.plotly_chart(fig_inc, use_container_width=True)
+
+        with col_ts2:
+            fig_pov = px.line(df_struct, x="year", y="poverty_rate", title="Poverty Rate Trend")
+            fig_pov.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20))
+            st.plotly_chart(fig_pov, use_container_width=True)
+
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ==================================================
-# TAB 2: DEPORTATION DATA PROJECT (DDP)
-# ==================================================
-with tab_justice:
-    st.markdown('<div class="fade-in">', unsafe_allow_html=True)
-    st.markdown(f"### Immigration Enforcement Patterns: {st.session_state.selected_city}")
-    st.markdown("Integrating data from the **Deportation Data Project (DDP)** to explore detention events, stint durations, and affected nationalities.")
-    
-    st.warning("Investigative Note: Enforcement data is highly sensitive. Spikes in detention counts should be cross-referenced with federal policy shifts and local ICE facility capacities (e.g., Bristol County).")
-
-    # Placeholder for actual DDP Data implementation
-    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-    st.markdown(f"*(Awaiting DDP Database Connection for {st.session_state.selected_city})*")
-    st.info("Next Step for Devs: Query DDP API/CSV filtering by `Target Municipality` to generate a bar chart of top impacted nationalities and a time-series of detention stints.")
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# ==================================================
-# TAB 3: METHODOLOGY & ETHICS
+# TAB 2: METHODOLOGY & ETHICS
 # ==================================================
 with tab_ethics:
     st.markdown('<div class="fade-in">', unsafe_allow_html=True)
@@ -299,15 +290,14 @@ with tab_ethics:
     This application is designed in strict accordance with the CivicHacks Ethics & Responsibility rubric.
 
     **1. Data Privacy & Security**
-    * All demographic and economic data is sourced from the U.S. Census Bureau's American Community Survey (ACS) 5-Year Estimates.
-    * No personally identifiable information (PII) or microdata is exposed or stored. All data is aggregated at the municipal level.
+    * All demographic and economic data is sourced exclusively from the U.S. Census Bureau's American Community Survey (ACS) 5-Year Estimates.
+    * No personally identifiable information (PII) or microdata is exposed or stored. All data is aggregated at the municipal level, ensuring complete privacy compliance.
 
     **2. Fairness & Human-Centeredness**
-    * We explicitly separate correlation from interpretation. The platform visualizes the concurrent growth of foreign-born populations and economic indicators (like median income or rent burden) to identify structural inequities, **not** to draw causal links or stigmatize immigrant communities.
-    * Language across the dashboard is carefully chosen to maintain journalistic objectivity.
+    * We explicitly separate correlation from interpretation. The platform visualizes the concurrent growth of foreign-born populations and economic indicators to identify structural realities, **not** to draw causal links or stigmatize communities.
+    * Language across the dashboard is carefully constructed to maintain an investigative, journalistic, and objective standard.
 
     **3. Limitations & Transparency**
-    * **ACS Margins of Error:** 5-Year estimates smooth out short-term volatility. Margins of Error (MOE) can be significant for smaller Gateway Cities and should be considered before publishing claims based on slight percentage shifts.
-    * **DDP Constraints:** Deportation and detention data often relies on FOIA requests. It may not capture instantaneous transfers or covert enforcement actions, representing a baseline rather than an absolute total.
+    * **ACS Margins of Error:** 5-Year estimates smooth out short-term volatility. Margins of Error (MOE) can be significant for smaller municipalities. The trends presented here are indicative of broader structural shifts and should be considered alongside localized reporting before publishing claims based on slight percentage differences.
     """)
     st.markdown('</div>', unsafe_allow_html=True)
