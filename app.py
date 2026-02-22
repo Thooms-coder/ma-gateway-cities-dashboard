@@ -121,6 +121,25 @@ center_lat, center_lon = (min_lat + max_lat) / 2, (min_lon + max_lon) / 2
 cities = get_all_cities()
 gateway_fips = set(get_gateway_fips()["place_fips"])
 
+# --------------------------------------------------
+# Allowed Cities (Gateway + Boston + Cambridge)
+# --------------------------------------------------
+
+# Add Boston and Cambridge explicitly
+extra_cities = cities[
+    cities["place_name"].isin([
+        "Boston city, Massachusetts",
+        "Cambridge city, Massachusetts"
+    ])
+]
+
+allowed_cities_df = pd.concat([
+    cities[cities["place_fips"].isin(gateway_fips)],
+    extra_cities
+]).drop_duplicates()
+
+allowed_fips = set(allowed_cities_df["place_fips"])
+
 # Ensure consistent type for lookup + query params
 if "place_fips" in cities.columns:
     cities["place_fips"] = cities["place_fips"].astype(str)
@@ -131,10 +150,10 @@ town_fips_map = {
     for name, fips in zip(cities["place_name"], cities["place_fips"])
 }
 
-# Build gateway name set from gateway_fips
-gateway_names = set(
+# Build allowed town name set (for map highlighting)
+allowed_town_names = set(
     normalize(clean_place_label(name))
-    for name in cities[cities["place_fips"].isin(gateway_fips)]["place_name"]
+    for name in allowed_cities_df["place_name"]
 )
 
 locations = [f["properties"]["TOWN"] for f in ma_geo["features"]]
@@ -248,7 +267,7 @@ with st.container():
     st.markdown("### Geographic Context")
 
     @st.cache_data
-    def build_map(geojson, locations, gw_names, town_fips_map_local, place_fips, c_lat, c_lon):
+    def build_map(geojson, locations, allowed_names, town_fips_map_local, place_fips, c_lat, c_lon):
 
         z_values = []
         selected_index = None
@@ -260,7 +279,7 @@ with st.container():
             if town_norm in town_fips_map_local and town_fips_map_local[town_norm] == place_fips:
                 z_values.append(2)
                 selected_index = i
-            elif town_norm in gw_names:
+            elif town_norm in allowed_names:
                 z_values.append(1)
             else:
                 z_values.append(0)
@@ -303,7 +322,15 @@ with st.container():
 
         return fig
 
-    fig_map = build_map(ma_geo, locations, gateway_names, town_fips_map, primary_fips, center_lat, center_lon)
+    fig_map = build_map(
+        ma_geo,
+        locations,
+        allowed_town_names,
+        town_fips_map,
+        primary_fips,
+        center_lat,
+        center_lon
+    )
     map_event = st.plotly_chart(fig_map, use_container_width=True, on_select="rerun", key="map_select")
 
     st.markdown(f"""
@@ -321,7 +348,10 @@ with st.container():
         # right before the if town_norm in town_fips_map:
         st.write("clicked_town:", clicked_town, "town_norm:", town_norm, "in_map:", town_norm in town_fips_map)
 
-        if town_norm in town_fips_map:
+        if (
+            town_norm in town_fips_map and
+            town_fips_map[town_norm] in allowed_fips
+        ):
             new_fips = town_fips_map[town_norm]
             new_city = cities[cities["place_fips"] == new_fips]["place_name"].iloc[0]
 
