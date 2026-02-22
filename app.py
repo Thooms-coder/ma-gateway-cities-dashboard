@@ -18,7 +18,7 @@ from src.queries import (
 st.set_page_config(
     page_title="GBH | Gateway Cities",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded" # Expanded to show the new Newsroom Alerts
 )
 
 # --------------------------------------------------
@@ -73,17 +73,6 @@ center_lat = (min_lat + max_lat) / 2
 center_lon = (min_lon + max_lon) / 2
 
 # --------------------------------------------------
-# Sidebar Controls
-# --------------------------------------------------
-
-with st.sidebar:
-    st.markdown("### Display Options")
-    show_income = st.toggle("Income Trend", value=False)
-    show_poverty = st.toggle("Poverty Trend", value=False)
-    show_markers = st.toggle("Markers", value=True)
-    smooth_lines = st.toggle("Smooth Lines", value=False)
-
-# --------------------------------------------------
 # Hero Section
 # --------------------------------------------------
 
@@ -120,6 +109,22 @@ gateway_names = set(
 )
 
 locations = [f["properties"]["TOWN"] for f in ma_geo["features"]]
+
+# --------------------------------------------------
+# Sidebar Controls & Alerts
+# --------------------------------------------------
+
+with st.sidebar:
+    st.markdown("### 🚨 Newsroom Alerts")
+    # We will populate the alert logic dynamically based on the selected city's data below
+    alert_placeholder = st.empty()
+    
+    st.markdown("---")
+    st.markdown("### 🎛️ Display Options")
+    show_income = st.toggle("Income Trend", value=False)
+    show_poverty = st.toggle("Poverty Trend", value=False)
+    show_markers = st.toggle("Markers", value=True)
+    smooth_lines = st.toggle("Smooth Lines", value=False)
 
 # --------------------------------------------------
 # Build Map
@@ -310,7 +315,7 @@ if len(df_scatter) > 0:
     df_scatter = df_scatter.dropna(subset=["foreign_born_percent", "poverty_rate"])
 
 # ---------------------------
-# Headline Metrics
+# Headline Metrics & Alerts
 # ---------------------------
 
 if len(df_fb) > 0:
@@ -322,9 +327,43 @@ else:
     latest_percent = np.nan
     growth = np.nan
 
-m1, m2 = st.columns(2)
-m1.metric("Current Foreign-Born %", f"{latest_percent:.1f}%" if pd.notna(latest_percent) else "N/A")
-m2.metric("Growth Since Start", f"{growth:.1f}%" if pd.notna(growth) else "N/A")
+# Populate Sidebar Alert based on growth
+if pd.notna(growth):
+    if growth > 15:
+        alert_placeholder.warning(f"📈 **High Growth Detected:** {selected_city} shows a rapid {growth:.1f}% increase in its foreign-born population. Recommend investigating housing availability.")
+    elif growth < 0:
+        alert_placeholder.info(f"📉 **Trend Shift:** {selected_city} indicates a {abs(growth):.1f}% decline in immigrant population. Outmigration may be occurring.")
+    else:
+        alert_placeholder.success(f"📊 **Stable Trend:** {selected_city}'s growth is stable at {growth:.1f}%.")
+
+# Render Custom KPI Cards
+col1, col2 = st.columns(2)
+
+with col1:
+    st.markdown(f"""
+    <div class="kpi-container">
+        <div class="kpi-label">Current Foreign-Born %</div>
+        <div class="kpi-value">{latest_percent:.1f}%</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col2:
+    st.markdown(f"""
+    <div class="kpi-container">
+        <div class="kpi-label">Growth Since Start</div>
+        <div class="kpi-value">{growth:.1f}%</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# ---------------------------
+# Auto-Lede Generator
+# ---------------------------
+st.markdown("### 📰 Generate Story Pitch")
+if st.button("Generate Newsroom Brief", type="primary"):
+    trend_word = "surged" if growth > 10 else "grown" if growth > 0 else "declined"
+    st.info(f"**Auto-Generated Pitch:** Over the observed period, the foreign-born population in {selected_city} has {trend_word} by {abs(growth):.1f}%, now representing {latest_percent:.1f}% of the total community. As demographic patterns shift, investigative attention should turn to correlating economic indicators—such as localized poverty and median household income trajectories—to understand the full scope of structural transformation in this Gateway City.")
+
+st.divider()
 
 # ==================================================
 # 1️⃣ STRUCTURAL SHIFT (Indexed Comparison)
@@ -332,7 +371,6 @@ m2.metric("Growth Since Start", f"{growth:.1f}%" if pd.notna(growth) else "N/A")
 
 df_indexed = df_struct.copy()
 
-# Robust check: explicitly ensure length is greater than zero
 if len(df_indexed) > 0:
     base_fb = df_indexed["foreign_born_percent"].iloc[0]
     base_inc = df_indexed["median_income"].iloc[0]
