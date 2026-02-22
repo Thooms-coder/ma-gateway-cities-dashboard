@@ -201,6 +201,15 @@ st.markdown("""
 
 col_search, col_export = st.columns([3, 1])
 with col_search:
+    st.markdown("""
+**Explore Gateway Cities**  
+
+Select a Gateway City to observe Foreign-Born Populations trends. 
+
+Selecting more than one Gateway City allows you to compare their demographic and economic trends side by side below. 
+
+    """)
+    
     available_options = sorted(
         set(city_options + st.session_state.get("selected_cities", []))
     )
@@ -729,9 +738,9 @@ with st.container():
     st.markdown("#### Data Responsibility & Methodology")
     st.markdown(textwrap.dedent("""<div style="font-size: 0.9rem; line-height: 1.6; color: #586069;">
     <strong>1. Transparency & Accuracy:</strong> All figures are derived directly from the U.S. Census American Community Survey (ACS) 5-Year Estimates. Margins of error (MOE) are preserved in the backend.<br><br>"""), unsafe_allow_html=True)
-    st.link_button("Open gateway city report", "https://www.census.gov/programs-surveys/acs/data.html")
+    st.link_button("Open gateway city report", url="https://www.census.gov/programs-surveys/acs/data.html")
     st.markdown(textwrap.dedent("""<div style="font-size: 0.9rem; line-height: 1.6; color: #586069;"> <strong>2. Journalistic Framing:</strong> This platform avoids causal claims without rigorous statistical testing. Correlation visualized across demographic and economic panels is intended to surface trends for localized reporting, rather than draw definitive conclusions.<br><br>
-    <strong>3. Limitations:</strong> ACS 5-year estimates smooth out short-term volatility. Data represented here should be cross-referenced with local municipal records where applicable.
+    <strong>3. Limitations:</strong> ACS 5-year estimatses smooth out short-term volatility. Data represented here should be cross-referenced with local municipal records where applicable.
     </div>
     """), unsafe_allow_html=True)
     
