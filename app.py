@@ -124,7 +124,6 @@ locations = [f["properties"]["TOWN"] for f in ma_geo["features"]]
 # Cached Base Map (Static Geometry + Legend)
 # --------------------------------------------------
 
-@st.cache_resource
 def build_base_map(geojson, locations, center_lat, center_lon):
     fig = go.Figure(go.Choroplethmapbox(
         geojson=geojson,
