@@ -83,50 +83,71 @@ city_data = {}
 
 for city, fips in selected_fips.items():
 
-    # --- Foreign Born Percent ---
+    # --------------------------------
+    # Foreign Born %
+    # --------------------------------
     df_fb_total = get_place_variable_trend(fips, VAR_FOREIGN_BORN_TOTAL)
     df_total_pop = get_place_variable_trend(fips, VAR_TOTAL_POP)
 
-    df_fb = (
-        df_fb_total
-        .merge(df_total_pop, on="acs_end_year", suffixes=("_fb", "_pop"))
-    )
+    if not df_fb_total.empty and not df_total_pop.empty:
+        df_fb = (
+            df_fb_total
+            .merge(df_total_pop, on="acs_end_year", suffixes=("_fb", "_pop"))
+        )
 
-    if not df_fb.empty:
         df_fb["year"] = df_fb["acs_end_year"]
         df_fb["foreign_born_percent"] = (
             df_fb["estimate_fb"] / df_fb["estimate_pop"]
         ) * 100
-        df_fb = df_fb[["year", "foreign_born_percent"]].sort_values("year")
 
-    # --- Income ---
+        df_fb = df_fb[["year", "foreign_born_percent"]].sort_values("year")
+    else:
+        df_fb = pd.DataFrame(columns=["year", "foreign_born_percent"])
+
+
+    # --------------------------------
+    # Income
+    # --------------------------------
     df_income_raw = get_place_variable_trend(fips, VAR_MEDIAN_INCOME)
+
     if not df_income_raw.empty:
         df_income = df_income_raw.rename(columns={
             "acs_end_year": "year",
             "estimate": "median_income"
         })[["year", "median_income"]]
     else:
-        df_income = pd.DataFrame()
+        df_income = pd.DataFrame(columns=["year", "median_income"])
 
-    # --- Poverty ---
+
+    # --------------------------------
+    # Poverty
+    # --------------------------------
     df_poverty_raw = get_place_variable_trend(fips, VAR_POVERTY_RATE)
+
     if not df_poverty_raw.empty:
         df_poverty = df_poverty_raw.rename(columns={
             "acs_end_year": "year",
             "estimate": "poverty_rate"
         })[["year", "poverty_rate"]]
     else:
-        df_poverty = pd.DataFrame()
+        df_poverty = pd.DataFrame(columns=["year", "poverty_rate"])
 
-    # --- Strict overlap for trajectory ---
-    df_struct = (
-        df_fb
-        .merge(df_income, on="year", how="inner")
-        .merge(df_poverty, on="year", how="inner")
-        .sort_values("year")
-        .reset_index(drop=True)
-    )
+
+    # --------------------------------
+    # Strict Overlap (Safe Merge)
+    # --------------------------------
+    if not df_fb.empty and not df_income.empty and not df_poverty.empty:
+        df_struct = (
+            df_fb
+            .merge(df_income, on="year", how="inner")
+            .merge(df_poverty, on="year", how="inner")
+            .sort_values("year")
+            .reset_index(drop=True)
+        )
+    else:
+        df_struct = pd.DataFrame(
+            columns=["year", "foreign_born_percent", "median_income", "poverty_rate"]
+        )
 
     city_data[city] = {
         "fb": df_fb,
