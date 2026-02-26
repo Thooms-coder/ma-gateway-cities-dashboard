@@ -1,214 +1,554 @@
-from sqlalchemy import text
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
+
 import pandas as pd
+from sqlalchemy import text
+
 from src.db import engine
 
-# ---------------------------
+
+# ============================================================
 # Core Utility
-# ---------------------------
+# ============================================================
 
-def run_query(query, params=None):
+def _normalize_params(params: Optional[dict]) -> Optional[dict]:
+    """Convert numpy scalars (and similar) to native Python types."""
+    if not params:
+        return params
+    normalized = {}
+    for k, v in params.items():
+        if hasattr(v, "item"):
+            normalized[k] = v.item()
+        else:
+            normalized[k] = v
+    return normalized
+
+
+def run_query(query: str, params: Optional[dict] = None) -> pd.DataFrame:
     """Executes a SQL query and returns a pandas DataFrame."""
-    
-    # Convert numpy scalars to native Python types
-    if params:
-        normalized = {}
-        for k, v in params.items():
-            if hasattr(v, "item"):   # catches numpy.int64, numpy.float64, etc.
-                normalized[k] = v.item()
-            else:
-                normalized[k] = v
-        params = normalized
-
+    params = _normalize_params(params)
     with engine.connect() as conn:
         return pd.read_sql(text(query), conn, params=params)
 
-def compute_growth(df, value_col):
-    """Calculates percentage change between first and last recorded years."""
-    if df.empty or len(df) < 2:
+
+def compute_growth(df: pd.DataFrame, year_col: str, value_col: str) -> Optional[float]:
+    """Percent change between first and last rows (ordered by year_col)."""
+    if df is None or df.empty or len(df) < 2:
         return None
-    df = df.sort_values("year")
-    start = df[value_col].iloc[0]
-    end = df[value_col].iloc[-1]
-    return ((end - start) / start) * 100 if start != 0 else None
+    d = df.sort_values(year_col)
+    start = d[value_col].iloc[0]
+    end = d[value_col].iloc[-1]
+    if pd.isna(start) or start == 0 or pd.isna(end):
+        return None
+    return ((end - start) / start) * 100.0
 
-# ---------------------------
+
+# ============================================================
+# Table Names (single source of truth)
+# ============================================================
+
+ACS_PLACE = "public.acs_place_data"
+ACS_STATE = "public.acs_state_data"
+CITY_REGISTRY = "public.gateway_cities"
+
+
+# ============================================================
 # City Registry
-# ---------------------------
+# ============================================================
 
-def get_cities(gateway_only=True):
-    query = """
+def get_cities(gateway_only: bool = True) -> pd.DataFrame:
+    query = f"""
         SELECT place_fips::text, place_name, is_gateway_city
-        FROM gateway_cities
-        {}
-        ORDER BY place_name;
-    """.format(
-        "WHERE is_gateway_city = TRUE" if gateway_only else ""
-    )
-    return run_query(query)
-
-# ---------------------------
-# Demographic Trends
-# ---------------------------
-
-def get_foreign_born_percent(place_fips):
-    query = """
-        SELECT 
-            fb.year,
-            fb.foreign_born_total::float,
-            tp.total_pop::float,
-            (fb.foreign_born_total::float / tp.total_pop::float) * 100 AS foreign_born_percent
-        FROM foreign_born_total fb
-        JOIN total_population tp
-            ON fb.place_fips::text = tp.place_fips::text
-            AND fb.year = tp.year
-        WHERE fb.place_fips::text = :place_fips
-        ORDER BY fb.year;
-    """
-    return run_query(query, {"place_fips": place_fips})
-
-def get_foreign_born_by_country(place_fips, year):
-    query = """
-        SELECT 
-            country_label_estimate AS country_label,
-            NULLIF(REGEXP_REPLACE(estimate, '[^0-9.]', '', 'g'), '')::float AS foreign_born
-        FROM foreign_born_by_country
-        WHERE place_fips::text = :place_fips
-        AND year = :year
-        ORDER BY foreign_born DESC;
-    """
-    return run_query(query, {
-        "place_fips": place_fips,
-        "year": year
-    })
-
-# ---------------------------
-# Economic Indicators
-# ---------------------------
-
-def get_income_trend(place_fips):
-    query = """
-        SELECT 
-            year,
-            NULLIF(REGEXP_REPLACE(estimate, '[^0-9.]', '', 'g'), '')::float AS median_income
-        FROM income
-        WHERE place_fips::text = :place_fips
-        AND variable_label IN (
-            'Estimate_Households_Median_income_(dollars)', 
-            'Households_Estimate_Median_income_(dollars)'
-        )
-        ORDER BY year;
-    """
-    return run_query(query, {"place_fips": place_fips})
-
-def get_poverty_trend(place_fips):
-    query = """
-        SELECT year, poverty_rate::float
-        FROM poverty_status
-        WHERE place_fips::text = :place_fips
-        ORDER BY year;
-    """
-    return run_query(query, {"place_fips": place_fips})
-
-def get_gini_trend(place_fips):
-    query = """
-        SELECT year, gini_index::float
-        FROM gini_index
-        WHERE place_fips::text = :place_fips
-        ORDER BY year;
-    """
-    return run_query(query, {"place_fips": place_fips})
-
-# ---------------------------
-# Housing & Employment
-# ---------------------------
-
-def get_rent_burden_percent(place_fips):
-    query = """
-        SELECT 
-            year,
-            (rent_burdened_30plus::float / total_renters::float) * 100 AS rent_burden_percent
-        FROM rent_burden
-        WHERE place_fips::text = :place_fips
-        ORDER BY year;
-    """
-    return run_query(query, {"place_fips": place_fips})
-
-def get_owner_renter_breakdown(place_fips, year):
-    """Provides the distribution of home ownership vs. rental status."""
-    query = """
-        SELECT 
-            tenure_label,
-            estimate::float
-        FROM owner_vs_renter
-        WHERE place_fips::text = :place_fips
-        AND year = :year;
-    """
-    return run_query(query, {"place_fips": place_fips, "year": year})
-
-def get_employment_rate(place_fips):
-    query = """
-        SELECT 
-            year,
-            (employed::float / pop_16plus::float) * 100 AS employment_rate
-        FROM employment_status
-        WHERE place_fips::text = :place_fips
-        ORDER BY year;
-    """
-    return run_query(query, {"place_fips": place_fips})
-
-# ---------------------------
-# Investigative Synthesis
-# ---------------------------
-
-def get_correlation_dataset(place_fips):
-    query = """
-        SELECT 
-            fb.year,
-            (fb.foreign_born_total::float / tp.total_pop::float) * 100 AS foreign_born_percent,
-            NULLIF(REGEXP_REPLACE(inc.estimate, '[^0-9.]', '', 'g'), '')::float AS median_income,
-            pov.poverty_rate::float AS poverty_rate
-        FROM foreign_born_total fb
-        JOIN total_population tp
-            ON fb.place_fips::text = tp.place_fips::text AND fb.year = tp.year
-        JOIN income inc
-            ON fb.place_fips::text = inc.place_fips::text AND fb.year = inc.year
-            AND inc.variable_label IN (
-                'Estimate_Households_Median_income_(dollars)', 
-                'Households_Estimate_Median_income_(dollars)'
-            )
-        JOIN poverty_status pov
-            ON fb.place_fips::text = pov.place_fips::text AND fb.year = pov.year
-        WHERE fb.place_fips::text = :place_fips
-        ORDER BY fb.year;
-    """
-    return run_query(query, {"place_fips": place_fips})
-
-def get_foreign_born_growth_all():
-    """Aggregates first-and-last year values across all municipalities for comparison."""
-    query = """
-        SELECT 
-            place_fips::text,
-            MIN(year) AS start_year,
-            MAX(year) AS end_year,
-            MIN(foreign_born_total) FILTER (WHERE year = (SELECT MIN(year) FROM foreign_born_total)) AS start_value,
-            MAX(foreign_born_total) FILTER (WHERE year = (SELECT MAX(year) FROM foreign_born_total)) AS end_value
-        FROM foreign_born_total
-        GROUP BY place_fips;
-    """
-    return run_query(query)
-
-def get_all_cities():
-    query = """
-        SELECT DISTINCT place_fips::text, place_name
-        FROM total_population
+        FROM {CITY_REGISTRY}
+        {"WHERE is_gateway_city = TRUE" if gateway_only else ""}
         ORDER BY place_name;
     """
     return run_query(query)
 
-def get_gateway_fips():
-    query = """
+
+def get_gateway_fips() -> pd.DataFrame:
+    query = f"""
         SELECT place_fips::text
-        FROM gateway_cities
+        FROM {CITY_REGISTRY}
         WHERE is_gateway_city = TRUE;
+    """
+    return run_query(query)
+
+
+# ============================================================
+# Warehouse Discovery / Metadata
+# ============================================================
+
+def get_years(scope: str = "place") -> pd.DataFrame:
+    """
+    Returns available ACS end years.
+    scope: 'place' or 'state'
+    """
+    table = ACS_PLACE if scope == "place" else ACS_STATE
+    query = f"""
+        SELECT DISTINCT acs_end_year, acs_period
+        FROM {table}
+        ORDER BY acs_end_year;
+    """
+    return run_query(query)
+
+
+def get_source_tables(scope: str = "place") -> pd.DataFrame:
+    table = ACS_PLACE if scope == "place" else ACS_STATE
+    query = f"""
+        SELECT source_table, COUNT(DISTINCT variable_id) AS variables
+        FROM {table}
+        GROUP BY source_table
+        ORDER BY source_table;
+    """
+    return run_query(query)
+
+
+def list_variables(
+    source_table: Optional[str] = None,
+    unit: Optional[str] = None,
+    is_percent: Optional[bool] = None,
+    scope: str = "place",
+    limit: int = 5000,
+) -> pd.DataFrame:
+    """
+    Lists distinct variables with labels and metadata.
+    Useful for building dropdowns / mapping dictionaries.
+    """
+    table = ACS_PLACE if scope == "place" else ACS_STATE
+
+    where = ["1=1"]
+    params = {}
+
+    if source_table:
+        where.append("source_table = :source_table")
+        params["source_table"] = source_table
+
+    if unit:
+        where.append("unit = :unit")
+        params["unit"] = unit
+
+    if is_percent is not None:
+        where.append("is_percent = :is_percent")
+        params["is_percent"] = is_percent
+
+    query = f"""
+        SELECT
+            variable_id,
+            MAX(variable_label) AS variable_label,
+            MAX(unit) AS unit,
+            MAX(is_percent) AS is_percent,
+            MAX(source_table) AS source_table
+        FROM {table}
+        WHERE {" AND ".join(where)}
+        GROUP BY variable_id
+        ORDER BY source_table, variable_id
+        LIMIT :limit;
+    """
+    params["limit"] = int(limit)
+    return run_query(query, params)
+
+
+def search_variables(
+    needle: str,
+    scope: str = "place",
+    limit: int = 200,
+) -> pd.DataFrame:
+    """
+    Search variable labels (ILIKE) for building UI search boxes.
+    """
+    table = ACS_PLACE if scope == "place" else ACS_STATE
+    query = f"""
+        SELECT
+            variable_id,
+            variable_label,
+            unit,
+            is_percent,
+            source_table
+        FROM {table}
+        WHERE variable_label ILIKE :q
+        GROUP BY variable_id, variable_label, unit, is_percent, source_table
+        ORDER BY source_table, variable_id
+        LIMIT :limit;
+    """
+    return run_query(query, {"q": f"%{needle}%", "limit": int(limit)})
+
+
+# ============================================================
+# Core Fetchers (single variable)
+# ============================================================
+
+def get_place_variable_trend(
+    place_fips: str,
+    variable_id: str,
+    include_moe: bool = True,
+    start_year: Optional[int] = None,
+    end_year: Optional[int] = None,
+) -> pd.DataFrame:
+    """
+    Time series for one variable_id for one place.
+    Returns columns: acs_end_year, estimate, moe(optional), unit, is_percent, variable_label, source_table
+    """
+    where = [
+        "place_fips::text = :place_fips",
+        "variable_id = :variable_id",
+    ]
+    params = {"place_fips": str(place_fips), "variable_id": variable_id}
+
+    if start_year is not None:
+        where.append("acs_end_year >= :start_year")
+        params["start_year"] = int(start_year)
+    if end_year is not None:
+        where.append("acs_end_year <= :end_year")
+        params["end_year"] = int(end_year)
+
+    cols = """
+        acs_end_year,
+        estimate::float AS estimate,
+        unit,
+        is_percent,
+        variable_label,
+        source_table
+    """
+    if include_moe:
+        cols = cols.replace("estimate::float AS estimate,", "estimate::float AS estimate, moe::float AS moe,")
+
+    query = f"""
+        SELECT {cols}
+        FROM {ACS_PLACE}
+        WHERE {" AND ".join(where)}
+        ORDER BY acs_end_year;
+    """
+    return run_query(query, params)
+
+
+def get_state_variable_trend(
+    state_fips: str = "25",
+    variable_id: str = "",
+    include_moe: bool = True,
+    start_year: Optional[int] = None,
+    end_year: Optional[int] = None,
+) -> pd.DataFrame:
+    """
+    Time series for one variable_id for the state.
+    state_fips defaults to Massachusetts "25".
+    """
+    where = [
+        "place_fips::text = :state_fips",
+        "variable_id = :variable_id",
+    ]
+    params = {"state_fips": str(state_fips), "variable_id": variable_id}
+
+    if start_year is not None:
+        where.append("acs_end_year >= :start_year")
+        params["start_year"] = int(start_year)
+    if end_year is not None:
+        where.append("acs_end_year <= :end_year")
+        params["end_year"] = int(end_year)
+
+    cols = """
+        acs_end_year,
+        estimate::float AS estimate,
+        unit,
+        is_percent,
+        variable_label,
+        source_table
+    """
+    if include_moe:
+        cols = cols.replace("estimate::float AS estimate,", "estimate::float AS estimate, moe::float AS moe,")
+
+    query = f"""
+        SELECT {cols}
+        FROM {ACS_STATE}
+        WHERE {" AND ".join(where)}
+        ORDER BY acs_end_year;
+    """
+    return run_query(query, params)
+
+
+def get_place_latest_value(place_fips: str, variable_id: str) -> pd.DataFrame:
+    """
+    Latest observation for a place and variable.
+    """
+    query = f"""
+        SELECT
+            acs_end_year,
+            estimate::float AS estimate,
+            moe::float AS moe,
+            unit,
+            is_percent,
+            variable_label,
+            source_table
+        FROM {ACS_PLACE}
+        WHERE place_fips::text = :place_fips
+          AND variable_id = :variable_id
+        ORDER BY acs_end_year DESC
+        LIMIT 1;
+    """
+    return run_query(query, {"place_fips": str(place_fips), "variable_id": variable_id})
+
+
+def get_state_latest_value(state_fips: str, variable_id: str) -> pd.DataFrame:
+    query = f"""
+        SELECT
+            acs_end_year,
+            estimate::float AS estimate,
+            moe::float AS moe,
+            unit,
+            is_percent,
+            variable_label,
+            source_table
+        FROM {ACS_STATE}
+        WHERE place_fips::text = :state_fips
+          AND variable_id = :variable_id
+        ORDER BY acs_end_year DESC
+        LIMIT 1;
+    """
+    return run_query(query, {"state_fips": str(state_fips), "variable_id": variable_id})
+
+
+# ============================================================
+# City vs State Comparison (same variable)
+# ============================================================
+
+def get_place_vs_state_trend(
+    place_fips: str,
+    variable_id: str,
+    state_fips: str = "25",
+    include_moe: bool = True,
+) -> pd.DataFrame:
+    """
+    Joins place trend and state trend on year for the same variable_id.
+    Returns acs_end_year, city_value, state_value (and optional moe columns).
+    """
+    city_cols = "p.estimate::float AS city_value"
+    state_cols = "s.estimate::float AS state_value"
+    moe_cols = ""
+    if include_moe:
+        moe_cols = ", p.moe::float AS city_moe, s.moe::float AS state_moe"
+
+    query = f"""
+        SELECT
+            p.acs_end_year,
+            {city_cols},
+            {state_cols}
+            {moe_cols},
+            p.unit,
+            p.is_percent,
+            p.variable_label,
+            p.source_table
+        FROM {ACS_PLACE} p
+        JOIN {ACS_STATE} s
+          ON p.acs_end_year = s.acs_end_year
+         AND p.variable_id = s.variable_id
+        WHERE p.place_fips::text = :place_fips
+          AND s.place_fips::text = :state_fips
+          AND p.variable_id = :variable_id
+        ORDER BY p.acs_end_year;
+    """
+    return run_query(query, {"place_fips": str(place_fips), "state_fips": str(state_fips), "variable_id": variable_id})
+
+
+# ============================================================
+# Multi-variable Panels (correlation/scatter-ready)
+# ============================================================
+
+def get_panel(
+    place_fips: str,
+    variables: Sequence[str],
+    start_year: Optional[int] = None,
+    end_year: Optional[int] = None,
+) -> pd.DataFrame:
+    """
+    Returns a wide panel by year for a set of variables for one place.
+    Output: one row per year, columns named by variable_id with values = estimate
+    """
+    if not variables:
+        return pd.DataFrame()
+
+    where = [
+        "place_fips::text = :place_fips",
+        "variable_id = ANY(:vars)",
+    ]
+    params = {"place_fips": str(place_fips), "vars": list(variables)}
+
+    if start_year is not None:
+        where.append("acs_end_year >= :start_year")
+        params["start_year"] = int(start_year)
+    if end_year is not None:
+        where.append("acs_end_year <= :end_year")
+        params["end_year"] = int(end_year)
+
+    query = f"""
+        SELECT acs_end_year, variable_id, estimate::float AS estimate
+        FROM {ACS_PLACE}
+        WHERE {" AND ".join(where)}
+        ORDER BY acs_end_year, variable_id;
+    """
+    long_df = run_query(query, params)
+    if long_df.empty:
+        return long_df
+
+    wide = (
+        long_df.pivot_table(index="acs_end_year", columns="variable_id", values="estimate", aggfunc="first")
+        .reset_index()
+        .rename_axis(None, axis=1)
+        .sort_values("acs_end_year")
+    )
+    return wide
+
+
+def get_scatter_dataset(
+    place_fips: str,
+    x_variable: str,
+    y_variable: str,
+    start_year: Optional[int] = None,
+    end_year: Optional[int] = None,
+) -> pd.DataFrame:
+    """
+    Returns a year-aligned scatter dataset for a place with x and y variables.
+    """
+    panel = get_panel(place_fips, [x_variable, y_variable], start_year=start_year, end_year=end_year)
+    if panel.empty:
+        return panel
+    # Ensure both exist
+    for v in [x_variable, y_variable]:
+        if v not in panel.columns:
+            return pd.DataFrame()
+    return panel[["acs_end_year", x_variable, y_variable]].rename(
+        columns={"acs_end_year": "year", x_variable: "x", y_variable: "y"}
+    )
+
+
+# ============================================================
+# Cross-city Analysis (rankings / distributions)
+# ============================================================
+
+def get_top_n_places_for_variable(
+    variable_id: str,
+    year: int,
+    n: int = 25,
+    gateway_only: bool = True,
+    descending: bool = True,
+) -> pd.DataFrame:
+    """
+    Ranks places by a variable for a given year.
+    Joins to gateway_cities for place_name and gateway filter.
+    """
+    order = "DESC" if descending else "ASC"
+    where_gateway = "AND gc.is_gateway_city = TRUE" if gateway_only else ""
+
+    query = f"""
+        SELECT
+            d.place_fips::text,
+            gc.place_name,
+            d.acs_end_year,
+            d.estimate::float AS estimate,
+            d.unit,
+            d.is_percent,
+            d.variable_label,
+            d.source_table
+        FROM {ACS_PLACE} d
+        JOIN {CITY_REGISTRY} gc
+          ON d.place_fips::text = gc.place_fips::text
+        WHERE d.acs_end_year = :year
+          AND d.variable_id = :variable_id
+          {where_gateway}
+        ORDER BY d.estimate {order} NULLS LAST
+        LIMIT :n;
+    """
+    return run_query(query, {"year": int(year), "variable_id": variable_id, "n": int(n)})
+
+
+def get_distribution_for_variable(
+    variable_id: str,
+    year: int,
+    gateway_only: bool = True,
+) -> pd.DataFrame:
+    """
+    Returns all place values for one variable in one year for histogram/boxplots.
+    """
+    where_gateway = "WHERE gc.is_gateway_city = TRUE" if gateway_only else ""
+    query = f"""
+        SELECT
+            d.place_fips::text,
+            gc.place_name,
+            d.acs_end_year,
+            d.estimate::float AS estimate,
+            d.unit,
+            d.is_percent,
+            d.variable_label,
+            d.source_table
+        FROM {ACS_PLACE} d
+        JOIN {CITY_REGISTRY} gc
+          ON d.place_fips::text = gc.place_fips::text
+        {where_gateway}
+        AND d.acs_end_year = :year
+        AND d.variable_id = :variable_id
+        ORDER BY d.estimate NULLS LAST;
+    """
+    return run_query(query, {"year": int(year), "variable_id": variable_id})
+
+
+# ============================================================
+# Convenience: "classic" metrics using variable_ids
+# ============================================================
+# These are OPTIONAL helper wrappers to keep your old app code readable.
+# You can extend this dict with any IDs you use in the UI.
+
+DEFAULT_VARIABLES: Dict[str, str] = {
+    # Population
+    "total_population": "B01003_001E",        # if you used B01003 long-format
+    # S0101 also has total pop: S0101_C01_001E
+    "total_population_profile": "S0101_C01_001E",
+
+    # Income (S1901)
+    "median_household_income": "S1901_C01_012E",  # common ACS profile id for median household income
+    # Poverty (S1701): you must set the exact id you want in your UI (rate vs count)
+    # Example placeholder:
+    "poverty_rate": "S1701_C03_001E",
+
+    # Gini (B19083)
+    "gini_index": "B19083_001E",
+}
+
+def get_metric_trend(place_fips: str, metric_key: str) -> pd.DataFrame:
+    """
+    Wrapper: metric_key must exist in DEFAULT_VARIABLES.
+    """
+    if metric_key not in DEFAULT_VARIABLES:
+        raise KeyError(f"Unknown metric_key '{metric_key}'. Add it to DEFAULT_VARIABLES.")
+    return get_place_variable_trend(place_fips, DEFAULT_VARIABLES[metric_key])
+
+
+def get_metric_vs_state(place_fips: str, metric_key: str, state_fips: str = "25") -> pd.DataFrame:
+    if metric_key not in DEFAULT_VARIABLES:
+        raise KeyError(f"Unknown metric_key '{metric_key}'. Add it to DEFAULT_VARIABLES.")
+    return get_place_vs_state_trend(place_fips, DEFAULT_VARIABLES[metric_key], state_fips=state_fips)
+
+
+# ============================================================
+# Guardrails: Quick sanity checks (optional)
+# ============================================================
+
+def sanity_check_place_key_duplicates(limit: int = 20) -> pd.DataFrame:
+    query = f"""
+        SELECT place_fips, acs_end_year, variable_id, COUNT(*) AS n
+        FROM {ACS_PLACE}
+        GROUP BY place_fips, acs_end_year, variable_id
+        HAVING COUNT(*) > 1
+        LIMIT :limit;
+    """
+    return run_query(query, {"limit": int(limit)})
+
+
+def sanity_check_negative_moe(scope: str = "place") -> pd.DataFrame:
+    table = ACS_PLACE if scope == "place" else ACS_STATE
+    query = f"""
+        SELECT COUNT(*) AS negative_moe_rows
+        FROM {table}
+        WHERE moe < 0;
     """
     return run_query(query)

@@ -1,0 +1,249 @@
+place_fips,place_name,is_gateway_city
+2500135,"Abington CDP, Massachusetts",False
+2500530,"Acushnet Center CDP, Massachusetts",False
+2500590,"Adams CDP, Massachusetts",False
+2500840,"Agawam Town city, Massachusetts",False
+2501260,"Amesbury Town city, Massachusetts",False
+2501370,"Amherst Town city, Massachusetts",False
+2501430,"Andover CDP, Massachusetts",False
+2501640,"Arlington CDP, Massachusetts",False
+2502515,"Athol CDP, Massachusetts",False
+2502690,"Attleboro city, Massachusetts",True
+2503040,"Ayer CDP, Massachusetts",False
+2503355,"Baldwinville CDP, Massachusetts",False
+2503690,"Barnstable Town city, Massachusetts",True
+2503705,"Barre CDP, Massachusetts",False
+2504790,"Belchertown CDP, Massachusetts",False
+2504965,"Bellingham CDP, Massachusetts",False
+2505105,"Belmont CDP, Massachusetts",False
+2505595,"Beverly city, Massachusetts",False
+2506050,"Blandford CDP, Massachusetts",False
+2506170,"Bliss Corner CDP, Massachusetts",False
+2507000,"Boston city, Massachusetts",False
+2507140,"Bourne CDP, Massachusetts",False
+2507385,"Boxford CDP, Massachusetts",False
+2507740,"Braintree Town city, Massachusetts",False
+2507945,"Brewster CDP, Massachusetts",False
+2508130,"Bridgewater Town city, Massachusetts",False
+2509000,"Brockton city, Massachusetts",True
+2509070,"Brookfield CDP, Massachusetts",False
+2509210,"Brookline CDP, Massachusetts",False
+2509875,"Burlington CDP, Massachusetts",False
+2510015,"Buzzards Bay CDP, Massachusetts",False
+2511000,"Cambridge city, Massachusetts",False
+2511945,"Cedar Crest CDP, Massachusetts",False
+2512960,"Chatham CDP, Massachusetts",False
+2513205,"Chelsea city, Massachusetts",True
+2513310,"Cheshire CDP, Massachusetts",False
+2513450,"Chester CDP, Massachusetts",False
+2513660,"Chicopee city, Massachusetts",True
+2514430,"Clinton CDP, Massachusetts",False
+2514570,"Cochituate CDP, Massachusetts",False
+2515340,"Cordaville CDP, Massachusetts",False
+2516285,"Danvers CDP, Massachusetts",False
+2516530,"Dedham CDP, Massachusetts",False
+2516635,"Deerfield CDP, Massachusetts",False
+2516740,"Dennis CDP, Massachusetts",False
+2516810,"Dennis Port CDP, Massachusetts",False
+2516840,"Devens CDP, Massachusetts",False
+2517370,"Dover CDP, Massachusetts",False
+2517860,"Duxbury CDP, Massachusetts",False
+2518595,"East Brookfield CDP, Massachusetts",False
+2518840,"East Dennis CDP, Massachusetts",False
+2518875,"East Douglas CDP, Massachusetts",False
+2518980,"East Falmouth CDP, Massachusetts",False
+2519400,"East Harwich CDP, Massachusetts",False
+2520310,"East Pepperell CDP, Massachusetts",False
+2520380,"East Sandwich CDP, Massachusetts",False
+2519370,"Easthampton Town city, Massachusetts",False
+2521115,"Edgartown CDP, Massachusetts",False
+2521815,"Essex CDP, Massachusetts",False
+2521990,"Everett city, Massachusetts",True
+2523000,"Fall River city, Massachusetts",True
+2523070,"Falmouth CDP, Massachusetts",False
+2523840,"Fiskdale CDP, Massachusetts",False
+2523875,"Fitchburg city, Massachusetts",True
+2524190,"Forestdale CDP, Massachusetts",False
+2524855,"Foxborough CDP, Massachusetts",False
+2524960,"Framingham city, Massachusetts",False
+2525172,"Franklin Town city, Massachusetts",False
+2525485,"Gardner city, Massachusetts",False
+2526150,"Gloucester city, Massachusetts",False
+2526500,"Granby CDP, Massachusetts",False
+2526780,"Great Barrington CDP, Massachusetts",False
+2527130,"Green Harbor CDP, Massachusetts",False
+2527060,"Greenfield city, Massachusetts",False
+2527445,"Groton CDP, Massachusetts",False
+2528425,"Hanscom AFB CDP, Massachusetts",False
+2528460,"Hanson CDP, Massachusetts",False
+2529055,"Harwich Center CDP, Massachusetts",False
+2529090,"Harwich Port CDP, Massachusetts",False
+2529230,"Hatfield CDP, Massachusetts",False
+2529405,"Haverhill city, Massachusetts",True
+2530175,"Hingham CDP, Massachusetts",False
+2530420,"Holbrook CDP, Massachusetts",False
+2530630,"Holland CDP, Massachusetts",False
+2530840,"Holyoke city, Massachusetts",True
+2530980,"Hopedale CDP, Massachusetts",False
+2531050,"Hopkinton CDP, Massachusetts",False
+2531295,"Housatonic CDP, Massachusetts",False
+2531575,"Hudson CDP, Massachusetts",False
+2531680,"Hull CDP, Massachusetts",False
+2531750,"Huntington CDP, Massachusetts",False
+2532275,"Ipswich CDP, Massachusetts",False
+2533185,"Kingston CDP, Massachusetts",False
+2534550,"Lawrence city, Massachusetts",True
+2534620,"Lee CDP, Massachusetts",False
+2534935,"Lenox CDP, Massachusetts",False
+2535040,"Lenox Dale CDP, Massachusetts",False
+2535075,"Leominster city, Massachusetts",True
+2535250,"Lexington CDP, Massachusetts",False
+2536020,"Littleton Common CDP, Massachusetts",False
+2536335,"Longmeadow CDP, Massachusetts",False
+2537000,"Lowell city, Massachusetts",True
+2537385,"Lunenburg CDP, Massachusetts",False
+2537490,"Lynn city, Massachusetts",True
+2537595,"Lynnfield CDP, Massachusetts",False
+2537735,"Madaket CDP, Massachusetts",False
+2537875,"Malden city, Massachusetts",True
+2538230,"Mansfield Center CDP, Massachusetts",False
+2538435,"Marblehead CDP, Massachusetts",False
+2538575,"Marion Center CDP, Massachusetts",False
+2538715,"Marlborough city, Massachusetts",False
+2538820,"Marshfield CDP, Massachusetts",False
+2538960,"Marshfield Hills CDP, Massachusetts",False
+2539152,"Mashpee Neck CDP, Massachusetts",False
+2539485,"Mattapoisett Center CDP, Massachusetts",False
+2539660,"Maynard CDP, Massachusetts",False
+2539730,"Medfield CDP, Massachusetts",False
+2539835,"Medford city, Massachusetts",False
+2540115,"Melrose city, Massachusetts",False
+2540710,"Methuen Town city, Massachusetts",True
+2540885,"Middleborough Center CDP, Massachusetts",False
+2541200,"Milford CDP, Massachusetts",False
+2541410,"Millers Falls CDP, Massachusetts",False
+2541532,"Millis-Clicquot CDP, Massachusetts",False
+2541725,"Milton CDP, Massachusetts",False
+2541960,"Monomoscoy Island CDP, Massachusetts",False
+2542180,"Monson Center CDP, Massachusetts",False
+2542670,"Monument Beach CDP, Massachusetts",False
+2543615,"Nahant CDP, Massachusetts",False
+2543755,"Nantucket CDP, Massachusetts",False
+2544140,"Needham CDP, Massachusetts",False
+2545000,"New Bedford city, Massachusetts",True
+2545500,"New Seabury CDP, Massachusetts",False
+2545245,"Newburyport city, Massachusetts",False
+2545560,"Newton city, Massachusetts",False
+2546225,"North Adams city, Massachusetts",False
+2546598,"North Attleborough Town city, Massachusetts",False
+2547100,"North Brookfield CDP, Massachusetts",False
+2547590,"North Eastham CDP, Massachusetts",False
+2547730,"North Falmouth CDP, Massachusetts",False
+2548220,"North Lakeville CDP, Massachusetts",False
+2548710,"North Pembroke CDP, Massachusetts",False
+2548780,"North Plymouth CDP, Massachusetts",False
+2549165,"North Scituate CDP, Massachusetts",False
+2549200,"North Seekonk CDP, Massachusetts",False
+2549710,"North Westport CDP, Massachusetts",False
+2546330,"Northampton city, Massachusetts",False
+2546785,"Northborough CDP, Massachusetts",False
+2547800,"Northfield CDP, Massachusetts",False
+2549700,"Northwest Harwich CDP, Massachusetts",False
+2550005,"Norton Center CDP, Massachusetts",False
+2550285,"Norwood CDP, Massachusetts",False
+2550425,"Oak Bluffs CDP, Massachusetts",False
+2550862,"Ocean Bluff-Brant Rock CDP, Massachusetts",False
+2550880,"Ocean Grove CDP, Massachusetts",False
+2551160,"Onset CDP, Massachusetts",False
+2551230,"Orange CDP, Massachusetts",False
+2551405,"Orleans CDP, Massachusetts",False
+2551790,"Oxford CDP, Massachusetts",False
+2552144,"Palmer Town city, Massachusetts",False
+2552490,"Peabody city, Massachusetts",True
+2552770,"Pepperell CDP, Massachusetts",False
+2553085,"Petersham CDP, Massachusetts",False
+2553680,"Pinehurst CDP, Massachusetts",False
+2553960,"Pittsfield city, Massachusetts",True
+2554275,"Plymouth CDP, Massachusetts",False
+2554450,"Pocasset CDP, Massachusetts",False
+2555070,"Popponesset CDP, Massachusetts",False
+2555090,"Popponesset Island CDP, Massachusetts",False
+2555535,"Provincetown CDP, Massachusetts",False
+2555745,"Quincy city, Massachusetts",True
+2556000,"Randolph Town city, Massachusetts",False
+2556095,"Raynham Center CDP, Massachusetts",False
+2556165,"Reading CDP, Massachusetts",False
+2556585,"Revere city, Massachusetts",True
+2557845,"Rockport CDP, Massachusetts",False
+2558370,"Rowley CDP, Massachusetts",False
+2558615,"Russell CDP, Massachusetts",False
+2558790,"Rutland CDP, Massachusetts",False
+2558965,"Sagamore CDP, Massachusetts",False
+2559105,"Salem city, Massachusetts",True
+2559210,"Salisbury CDP, Massachusetts",False
+2559700,"Sandwich CDP, Massachusetts",False
+2560050,"Saugus CDP, Massachusetts",False
+2560295,"Scituate CDP, Massachusetts",False
+2560505,"Seabrook CDP, Massachusetts",False
+2560627,"Seconsett Island CDP, Massachusetts",False
+2560820,"Sharon CDP, Massachusetts",False
+2561205,"Shelburne Falls CDP, Massachusetts",False
+2561555,"Shirley CDP, Massachusetts",False
+2561940,"Siasconset CDP, Massachusetts",False
+2562300,"Smith Mills CDP, Massachusetts",False
+2562465,"Somerset CDP, Massachusetts",False
+2562535,"Somerville city, Massachusetts",False
+2562780,"South Ashburnham CDP, Massachusetts",False
+2563620,"South Deerfield CDP, Massachusetts",False
+2563655,"South Dennis CDP, Massachusetts",False
+2563690,"South Duxbury CDP, Massachusetts",False
+2564460,"South Lancaster CDP, Massachusetts",False
+2566035,"South Yarmouth CDP, Massachusetts",False
+2563345,"Southbridge Town city, Massachusetts",False
+2566070,"Spencer CDP, Massachusetts",False
+2567000,"Springfield city, Massachusetts",True
+2567700,"Stoneham CDP, Massachusetts",False
+2568120,"Sturbridge CDP, Massachusetts",False
+2568680,"Swampscott CDP, Massachusetts",False
+2569170,"Taunton city, Massachusetts",True
+2569205,"Teaticket CDP, Massachusetts",False
+2569585,"The Pinehills CDP, Massachusetts",False
+2570115,"Topsfield CDP, Massachusetts",False
+2570325,"Townsend CDP, Massachusetts",False
+2570815,"Turners Falls CDP, Massachusetts",False
+2571445,"Upton CDP, Massachusetts",False
+2571970,"Vineyard Haven CDP, Massachusetts",False
+2572250,"Wakefield CDP, Massachusetts",False
+2572460,"Walpole CDP, Massachusetts",False
+2572600,"Waltham city, Massachusetts",False
+2572845,"Ware CDP, Massachusetts",False
+2573020,"Wareham Center CDP, Massachusetts",False
+2573055,"Warren CDP, Massachusetts",False
+2573440,"Watertown Town city, Massachusetts",False
+2573930,"Webster CDP, Massachusetts",False
+2574210,"Wellesley CDP, Massachusetts",False
+2575365,"West Brookfield CDP, Massachusetts",False
+2575505,"West Chatham CDP, Massachusetts",False
+2575680,"West Concord CDP, Massachusetts",False
+2575820,"West Dennis CDP, Massachusetts",False
+2575960,"West Falmouth CDP, Massachusetts",False
+2577890,"West Springfield Town city, Massachusetts",False
+2578410,"West Wareham CDP, Massachusetts",False
+2578445,"West Warren CDP, Massachusetts",False
+2578795,"West Yarmouth CDP, Massachusetts",False
+2575050,"Westborough CDP, Massachusetts",False
+2576030,"Westfield city, Massachusetts",True
+2578850,"Weweantic CDP, Massachusetts",False
+2578972,"Weymouth Town city, Massachusetts",False
+2579390,"White Island Shores CDP, Massachusetts",False
+2579495,"Whitinsville CDP, Massachusetts",False
+2579705,"Wilbraham CDP, Massachusetts",False
+2579950,"Williamstown CDP, Massachusetts",False
+2580195,"Wilmington CDP, Massachusetts",False
+2580370,"Winchendon CDP, Massachusetts",False
+2580545,"Winchester CDP, Massachusetts",False
+2581005,"Winthrop Town city, Massachusetts",False
+2581035,"Woburn city, Massachusetts",False
+2581245,"Woods Hole CDP, Massachusetts",False
+2582000,"Worcester city, Massachusetts",True
+2582595,"Yarmouth Port CDP, Massachusetts",False
