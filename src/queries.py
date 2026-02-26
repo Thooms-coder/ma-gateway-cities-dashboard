@@ -223,6 +223,65 @@ def get_place_variable_trend(
     """
     return run_query(query, params)
 
+def get_place_source_table_year(
+    place_fips: str,
+    source_table: str,
+    year: int,
+    include_moe: bool = True,
+) -> pd.DataFrame:
+    """
+    Fetch ALL variables for a given source_table
+    for a specific place and ACS year.
+
+    Used for:
+        - B05006 country-of-origin breakdown
+        - full table inspection
+        - hierarchical variable extraction
+
+    Returns:
+        acs_end_year,
+        variable_id,
+        estimate,
+        (optional) moe,
+        unit,
+        is_percent,
+        variable_label,
+        source_table
+    """
+
+    cols = """
+        acs_end_year,
+        variable_id,
+        estimate::float AS estimate,
+        unit,
+        is_percent,
+        variable_label,
+        source_table
+    """
+
+    if include_moe:
+        cols = cols.replace(
+            "estimate::float AS estimate,",
+            "estimate::float AS estimate, moe::float AS moe,"
+        )
+
+    query = f"""
+        SELECT {cols}
+        FROM {ACS_PLACE}
+        WHERE place_fips::text = :place_fips
+          AND source_table = :source_table
+          AND acs_end_year = :year
+        ORDER BY variable_id;
+    """
+
+    return run_query(
+        query,
+        {
+            "place_fips": str(place_fips),
+            "source_table": source_table,
+            "year": int(year),
+        },
+    )
 
 def get_state_variable_trend(
     state_fips: str = "25",

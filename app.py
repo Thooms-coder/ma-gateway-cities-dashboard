@@ -14,7 +14,8 @@ import pycountry
 from src.queries import (
     get_cities,
     get_gateway_fips,
-    get_place_variable_trend
+    get_place_variable_trend,
+    get_place_source_table_year
 )
 
 # --------------------------------------------------
@@ -620,7 +621,12 @@ with st.container():
     try:
         # Try: if your get_place_variable_trend supports "source_table" by passing variable_id=None and source_table=...
         # If it doesn't, it will throw and we handle cleanly.
-        df_b05006 = get_place_variable_trend(primary_fips, None, source_table=SOURCE_BIRTH_TABLE, year=latest_year)  # type: ignore
+
+        df_b05006 = get_place_source_table_year(
+            primary_fips,
+            SOURCE_BIRTH_TABLE,
+            latest_year
+        )
     except Exception:
         df_b05006 = pd.DataFrame()
 
