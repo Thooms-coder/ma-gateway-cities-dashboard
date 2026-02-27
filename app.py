@@ -216,20 +216,14 @@ catalog: Dict[str, Dict] = (
 
 available_years = get_available_gateway_years()
 if not available_years:
-    st.error("No years available in gateway_metrics.")
+    st.error("No data found in public.gateway_metrics.")
     st.stop()
 
-latest_year = max(available_years)
+min_year = min(available_years)
+max_year = max(available_years)
 
 if "selected_year" not in st.session_state:
-    st.session_state["selected_year"] = latest_year
-
-selected_year = st.selectbox(
-    "Year",
-    options=available_years,
-    index=available_years.index(st.session_state["selected_year"]),
-    key="selected_year",
-)
+    st.session_state["selected_year"] = max_year
 
 def fmt_value(v: float, meta: Dict) -> str:
     if pd.isna(v):
@@ -299,7 +293,7 @@ primary_fips = str(
 st.markdown(
     f"""
     <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
-        <span class='pill'>Latest year: <b>{latest_year}</b></span>
+        <span class='pill'>Data range: <b>{min_year}–{max_year}</b></span>
     </div>
     """,
     unsafe_allow_html=True,
@@ -576,26 +570,25 @@ with tab_map:
         st.markdown(f"# {primary_city.split(',')[0]} — City Profile")
 
         # --------------------------------------------------
-        # Available Years (Gateway Metrics)
+        # Profile Year Selector (Right-Aligned)
         # --------------------------------------------------
 
-        available_years = get_available_gateway_years()
+        col_title, col_year = st.columns([4, 1])
 
-        if not available_years:
-            st.error("No data found in public.gateway_metrics.")
-            st.stop()
+        with col_year:
+            selected_year = st.selectbox(
+                "Year",
+                options=available_years,
+                index=available_years.index(st.session_state["selected_year"]),
+                key="selected_year_profile",
+            )
 
-        latest_year = max(available_years)
-
-        if "selected_year" not in st.session_state:
-            st.session_state["selected_year"] = latest_year
-
-        selected_year = st.session_state["selected_year"]
+        st.session_state["selected_year"] = selected_year
 
         # --------------------------------------------------
         # 1️⃣ Snapshot Grid
         # --------------------------------------------------
-        st.markdown("## Snapshot (Latest Year)")
+        st.markdown("## Snapshot ({selected_year})")
 
         CORE_METRICS = [
             "total_population",
@@ -746,15 +739,18 @@ with tab_story:
             st.info("No metrics configured for this theme.")
         else:
             cols = st.columns(min(len(metrics), 6))
+
             for i, mk in enumerate(metrics):
                 meta = catalog.get(mk, {"metric_label": mk, "format_hint": "number"})
-                snap = get_gateway_metric_snapshot(place_fips, mk)
+
+                # 👇 Use selected_year
+                snap = get_gateway_metric_snapshot(place_fips, mk, selected_year)
+
                 if snap is None or snap.empty:
                     cols[i % len(cols)].metric(meta.get("metric_label", mk), "—")
                     continue
 
                 v = snap["value"].iloc[0]
-                yr = int(snap["year"].iloc[0]) if pd.notna(snap["year"].iloc[0]) else latest_year
                 rnk = snap.get("rank_within_gateway", pd.Series([None])).iloc[0]
                 d5 = snap.get("delta_5yr", pd.Series([None])).iloc[0]
 
@@ -763,8 +759,9 @@ with tab_story:
 
                 c = cols[i % len(cols)]
                 c.metric(meta.get("metric_label", mk), main, delta)
+
                 if pd.notna(rnk):
-                    c.caption(f"Rank: {int(rnk)} (Gateway Cities) • {yr}")
+                    c.caption(f"Rank: {int(rnk)} (Gateway Cities) • {selected_year}")
 
         st.divider()
 
@@ -798,12 +795,26 @@ with tab_story:
             )
             st.plotly_chart(fig, use_container_width=True)
 
-        # Ranking table for latest year
+        # --------------------------------------------------
+        # Ranking table (dynamic by selected metric)
+        # --------------------------------------------------
+
+        rank_meta = catalog.get(lead_metric, {"metric_label": lead_metric})
+
         st.markdown(
-            f"**Gateway ranking ({selected_year}):** {meta.get('metric_label', lead_metric)}"
+            f"### Gateway Ranking — {rank_meta.get('metric_label')} ({selected_year})"
         )
+
         rank_df = get_gateway_ranking(lead_metric, selected_year)
-        st.dataframe(rank_df, use_container_width=True, hide_index=True)
+
+        if rank_df is None or rank_df.empty:
+            st.info("No ranking data available for this metric/year.")
+        else:
+            st.dataframe(
+                rank_df,
+                use_container_width=True,
+                hide_index=True,
+            )
 
         # Investigative mode
         if investigate:
