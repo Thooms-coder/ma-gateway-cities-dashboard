@@ -28,7 +28,6 @@ from src.queries import (
 )
 from src.story_angles import STORY_ANGLES
 
-
 # --------------------------------------------------
 # Design System Colors
 # --------------------------------------------------
@@ -118,7 +117,10 @@ def normalize(name: str) -> str:
 
 
 def clean_place_label(name: str) -> str:
-    # "Boston city, Massachusetts" -> "Boston"
+    """
+    "Boston city, Massachusetts" -> "Boston"
+    (keeps most municipality names consistent with geojson TOWN)
+    """
     s = str(name).replace(", Massachusetts", "").strip()
     s = re.sub(r"\b(city|town)\b", "", s, flags=re.IGNORECASE).strip()
     s = re.sub(r"\s{2,}", " ", s)
@@ -150,9 +152,14 @@ center_lat, center_lon = (min_lat + max_lat) / 2, (min_lon + max_lon) / 2
 # Registry + Catalog
 # --------------------------------------------------
 cities_all = get_cities(gateway_only=False).copy()
+if cities_all is None or cities_all.empty:
+    st.error("No cities returned from get_cities(). Verify public.gateway_cities and DB connectivity.")
+    st.stop()
+
 cities_all["place_fips"] = cities_all["place_fips"].astype(str)
 
-gateway_fips = set(get_gateway_fips()["place_fips"].astype(str))
+gateway_fips_df = get_gateway_fips()
+gateway_fips = set(gateway_fips_df["place_fips"].astype(str)) if gateway_fips_df is not None and not gateway_fips_df.empty else set()
 
 EXTRA_CITY_NAMES = {"Boston city, Massachusetts", "Cambridge city, Massachusetts"}
 extra_cities = cities_all[cities_all["place_name"].isin(list(EXTRA_CITY_NAMES))].copy()
@@ -168,7 +175,7 @@ if not gateway_city_options:
 # Metric catalog (single source of truth for labels, units, formatting)
 catalog_df = get_metric_catalog()
 catalog: Dict[str, Dict] = (
-    catalog_df.set_index("metric_key").to_dict(orient="index") if not catalog_df.empty else {}
+    catalog_df.set_index("metric_key").to_dict(orient="index") if catalog_df is not None and not catalog_df.empty else {}
 )
 
 latest_year = get_latest_year_available()
@@ -185,9 +192,7 @@ def fmt_value(v: float, meta: Dict) -> str:
         return f"{float(v):.1f}%"
     if hint == "dollars":
         return f"${float(v):,.0f}"
-    # fallback
     try:
-        # treat as numeric
         vv = float(v)
         if abs(vv) >= 1000:
             return f"{vv:,.0f}"
@@ -237,6 +242,11 @@ col_search, col_meta = st.columns([3, 1])
 
 with col_search:
     st.markdown("**Explore Gateway Cities**  \nSelect up to 3 Gateway Cities for side-by-side comparisons.")
+
+    # ensure session state exists
+    if "selected_cities" not in st.session_state:
+        st.session_state["selected_cities"] = [gateway_city_options[0]]
+
     available_options = sorted(set(gateway_city_options + st.session_state.get("selected_cities", [])))
 
     selected_cities = st.multiselect(
@@ -248,6 +258,7 @@ with col_search:
     )
     if not selected_cities:
         selected_cities = [gateway_city_options[0]]
+        st.session_state["selected_cities"] = selected_cities
 
 with col_meta:
     st.markdown("<br>", unsafe_allow_html=True)
@@ -261,7 +272,7 @@ selected_fips = {
 }
 primary_city = selected_cities[0]
 primary_fips = selected_fips[primary_city]
-st.session_state.selected_city = primary_city
+st.session_state["selected_city"] = primary_city
 
 # --------------------------------------------------
 # Tabs
@@ -271,7 +282,7 @@ tab_map, tab_story, tab_compare, tab_origins = st.tabs(
 )
 
 # ==================================================
-# TAB 1: MAP (kept)
+# TAB 1: MAP
 # ==================================================
 with tab_map:
     with st.container():
@@ -369,7 +380,12 @@ with tab_map:
             boston_cambridge_names,
         )
 
-        map_event = st.plotly_chart(fig_map, use_container_width=True, on_select="rerun", key="map_select")
+        map_event = st.plotly_chart(
+            fig_map,
+            use_container_width=True,
+            on_select="rerun",
+            key="map_select"
+        )
 
         st.markdown(
             f"""
@@ -384,20 +400,21 @@ with tab_map:
         )
 
         # click-to-add: gateway cities only
-        if map_event and "selection" in map_event and map_event["selection"]["points"]:
-            clicked_town = map_event["selection"]["points"][0]["location"]
-            town_norm = normalize(clicked_town)
-
-            if town_norm in town_fips_map:
-                new_fips = town_fips_map[town_norm]
-                if new_fips in gateway_fips:
-                    new_city = cities_all[cities_all["place_fips"] == new_fips]["place_name"].iloc[0]
-                    if new_city not in st.session_state["selected_cities"]:
-                        if len(st.session_state["selected_cities"]) < 3:
-                            st.session_state["selected_cities"].append(new_city)
-                        else:
-                            st.session_state["selected_cities"] = [st.session_state["selected_cities"][0], new_city]
-                        st.rerun()
+        if map_event and isinstance(map_event, dict) and "selection" in map_event and map_event["selection"].get("points"):
+            clicked_town = map_event["selection"]["points"][0].get("location")
+            if clicked_town:
+                town_norm = normalize(clicked_town)
+                if town_norm in town_fips_map:
+                    new_fips = str(town_fips_map[town_norm])
+                    if new_fips in gateway_fips:
+                        new_city = cities_all[cities_all["place_fips"] == new_fips]["place_name"].iloc[0]
+                        cur = st.session_state.get("selected_cities", [])
+                        if new_city not in cur:
+                            if len(cur) < 3:
+                                st.session_state["selected_cities"] = cur + [new_city]
+                            else:
+                                st.session_state["selected_cities"] = [cur[0], new_city]
+                            st.rerun()
 
         # KPI narrative using gateway_metrics (no raw ACS pulling)
         fb_tr = get_gateway_metric_trend(primary_fips, "foreign_born_share")
@@ -405,30 +422,33 @@ with tab_map:
             fb_tr = fb_tr.copy()
             fb_tr["year"] = pd.to_numeric(fb_tr["year"], errors="coerce")
             fb_tr = fb_tr.dropna(subset=["year"]).sort_values("year")
-            latest_val = float(fb_tr["value"].iloc[-1])
-            start_val = float(fb_tr["value"].iloc[0])
-            growth = ((latest_val - start_val) / start_val) * 100 if start_val != 0 else 0
 
-            col_kpi, col_lede = st.columns([1, 2.5])
-            with col_kpi:
-                st.metric("Foreign-Born Share", f"{latest_val:.1f}%")
-                st.metric("Period Change", f"{latest_val - start_val:+.1f} pts")
-            with col_lede:
-                trend_word = "surged" if growth > 10 else "grown" if growth > 0 else "declined"
-                st.markdown(
-                    textwrap.dedent(
-                        f"""
-                        <div style="font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; font-size:1.05rem; line-height: 1.65; color: #333; padding: 6px 0;">
-                        Over the observed period, the foreign-born share in <b>{primary_city}</b> has {trend_word},
-                        now at <b>{latest_val:.1f}%</b>.
-                        </div>
-                        """
-                    ),
-                    unsafe_allow_html=True,
-                )
+            if len(fb_tr) >= 2 and pd.notna(fb_tr["value"].iloc[-1]) and pd.notna(fb_tr["value"].iloc[0]):
+                latest_val = float(fb_tr["value"].iloc[-1])
+                start_val = float(fb_tr["value"].iloc[0])
+                growth = ((latest_val - start_val) / start_val) * 100 if start_val != 0 else 0
+
+                col_kpi, col_lede = st.columns([1, 2.5])
+                with col_kpi:
+                    st.metric("Foreign-Born Share", f"{latest_val:.1f}%")
+                    st.metric("Period Change", f"{latest_val - start_val:+.1f} pts")
+                with col_lede:
+                    trend_word = "surged" if growth > 10 else "grown" if growth > 0 else "declined"
+                    st.markdown(
+                        textwrap.dedent(
+                            f"""
+                            <div style="font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; font-size:1.05rem; line-height: 1.65; color: #333; padding: 6px 0;">
+                            Over the observed period, the foreign-born share in <b>{primary_city}</b> has {trend_word},
+                            now at <b>{latest_val:.1f}%</b>.
+                            </div>
+                            """
+                        ),
+                        unsafe_allow_html=True,
+                    )
+            else:
+                st.info("Foreign-born share time series is incomplete for the selected municipality.")
         else:
             st.info("Foreign-born share time series not available for the selected municipality.")
-
 
 # ==================================================
 # TAB 2: INVESTIGATIVE THEMES (Story Angles)
@@ -440,6 +460,10 @@ with tab_story:
 
         # City selector (gateway-only)
         cities_df = get_cities(gateway_only=True)
+        if cities_df is None or cities_df.empty:
+            st.error("No gateway cities returned. Verify is_gateway_city flags and gateway_cities table.")
+            st.stop()
+
         story_city = st.selectbox(
             "Gateway City",
             cities_df["place_name"].tolist(),
@@ -467,19 +491,20 @@ with tab_story:
             for i, mk in enumerate(metrics):
                 meta = catalog.get(mk, {"metric_label": mk, "format_hint": "number"})
                 snap = get_gateway_metric_snapshot(place_fips, mk)
+                c = cols[i % len(cols)]
+
                 if snap is None or snap.empty:
-                    cols[i % len(cols)].metric(meta.get("metric_label", mk), "—")
+                    c.metric(meta.get("metric_label", mk), "—")
                     continue
 
                 v = snap["value"].iloc[0]
-                yr = int(snap["year"].iloc[0]) if pd.notna(snap["year"].iloc[0]) else latest_year
+                yr = int(snap["year"].iloc[0]) if "year" in snap.columns and pd.notna(snap["year"].iloc[0]) else latest_year
                 rnk = snap.get("rank_within_gateway", pd.Series([None])).iloc[0]
                 d5 = snap.get("delta_5yr", pd.Series([None])).iloc[0]
 
                 main = fmt_value(v, meta)
                 delta = fmt_delta(d5, meta)
 
-                c = cols[i % len(cols)]
                 c.metric(meta.get("metric_label", mk), main, delta)
                 if pd.notna(rnk):
                     c.caption(f"Rank: {int(rnk)} (Gateway Cities) • {yr}")
@@ -493,16 +518,24 @@ with tab_story:
             format_func=lambda k: catalog.get(k, {"metric_label": k}).get("metric_label", k),
         )
 
-        city_trend = get_gateway_metric_trend(place_fips, lead_metric).rename(columns={"value": "City"})
-        ma_trend = get_state_metric_trend(lead_metric).rename(columns={"value": "Massachusetts"})
-        trend = city_trend.merge(ma_trend, on="year", how="left")
+        # safer trend merge (state optional)
+        city_trend = get_gateway_metric_trend(place_fips, lead_metric)
+        state_trend = get_state_metric_trend(lead_metric)
 
         meta = catalog.get(lead_metric, {"metric_label": lead_metric})
+
         st.markdown(f"**Trend:** {meta.get('metric_label', lead_metric)}")
 
-        if trend is None or trend.empty:
+        if city_trend is None or city_trend.empty:
             st.info("No trend data available for this metric/city.")
         else:
+            city_trend = city_trend.rename(columns={"value": "City"})
+            if state_trend is not None and not state_trend.empty:
+                state_trend = state_trend.rename(columns={"value": "Massachusetts"})
+                trend = city_trend.merge(state_trend, on="year", how="left")
+            else:
+                trend = city_trend
+
             fig = go.Figure()
             fig.add_trace(go.Scatter(x=trend["year"], y=trend["City"], mode="lines", name=story_city))
             if "Massachusetts" in trend.columns:
@@ -516,12 +549,13 @@ with tab_story:
             )
             st.plotly_chart(fig, use_container_width=True)
 
-        # Ranking table for latest year
-        st.markdown(
-            f"**Gateway ranking ({latest_year}):** {meta.get('metric_label', lead_metric)}"
-        )
+        # Ranking table for latest year (guarded)
+        st.markdown(f"**Gateway ranking ({latest_year}):** {meta.get('metric_label', lead_metric)}")
         rank_df = get_gateway_ranking(lead_metric, latest_year)
-        st.dataframe(rank_df, use_container_width=True, hide_index=True)
+        if rank_df is None or rank_df.empty:
+            st.info("No ranking data available for this metric.")
+        else:
+            st.dataframe(rank_df, use_container_width=True, hide_index=True)
 
         # Investigative mode
         if investigate:
@@ -558,30 +592,25 @@ with tab_story:
                         hover_name="place_name",
                         title=f"{latest_year}: {xl} (x) vs {yl} (y)",
                     )
-                    # highlight selected city
-                    fig_sc.update_traces(
-                        marker=dict(size=10),
-                        selector=dict(mode="markers"),
-                    )
-                    fig_sc.add_trace(
-                        go.Scatter(
-                            x=sc.loc[sc["is_selected"], "x"],
-                            y=sc.loc[sc["is_selected"], "y"],
-                            mode="markers",
-                            name=story_city,
-                            marker=dict(size=16, symbol="diamond"),
-                            hovertemplate=f"<b>{story_city}</b><br>{xl}: %{{x}}<br>{yl}: %{{y}}<extra></extra>",
+                    fig_sc.update_traces(marker=dict(size=10), selector=dict(mode="markers"))
+
+                    sel = sc[sc["is_selected"]]
+                    if not sel.empty:
+                        fig_sc.add_trace(
+                            go.Scatter(
+                                x=sel["x"],
+                                y=sel["y"],
+                                mode="markers",
+                                name=story_city,
+                                marker=dict(size=16, symbol="diamond"),
+                                hovertemplate=f"<b>{story_city}</b><br>{xl}: %{{x}}<br>{yl}: %{{y}}<extra></extra>",
+                            )
                         )
-                    )
                     fig_sc.update_layout(template="plotly_white", height=520)
                     st.plotly_chart(fig_sc, use_container_width=True)
 
-                    city_row = sc[sc["is_selected"]]
-                    if not city_row.empty:
-                        st.caption(
-                            f"{story_city}: {xl}={city_row['x'].iloc[0]:.2f}, {yl}={city_row['y'].iloc[0]:.2f}"
-                        )
-
+                    if not sel.empty and pd.notna(sel["x"].iloc[0]) and pd.notna(sel["y"].iloc[0]):
+                        st.caption(f"{story_city}: {xl}={sel['x'].iloc[0]:.2f}, {yl}={sel['y'].iloc[0]:.2f}")
 
 # ==================================================
 # TAB 3: COMPARE METRICS (cross-city + cross-metric)
@@ -606,12 +635,6 @@ with tab_compare:
                     index=metric_keys.index("median_income") if "median_income" in metric_keys else 0,
                     format_func=lambda k: metric_labels.get(k, k),
                 )
-                year_for_scatter = st.selectbox(
-                    "Scatter year",
-                    sorted(catalog_df.get("year", pd.Series([latest_year])).unique().tolist())
-                    if "year" in catalog_df.columns else [latest_year],
-                    index=0,
-                )
 
             with col_b:
                 st.markdown("**Multi-city trend** (selected cities)")
@@ -634,6 +657,9 @@ with tab_compare:
 
         st.markdown("### Cross-metric scatter (Gateway Cities)")
         if catalog:
+            metric_keys = sorted(list(catalog.keys()))
+            metric_labels = {k: catalog[k].get("metric_label", k) for k in metric_keys}
+
             c1, c2, c3 = st.columns([1.2, 1.2, 1.2])
             with c1:
                 metric_x = st.selectbox(
@@ -675,7 +701,7 @@ with tab_compare:
                     hover_name="place_name",
                     title=f"{sc_year}: {xl} (x) vs {yl} (y)",
                 )
-                # highlight selected cities
+
                 sel = sc[sc["is_in_selection"]]
                 if not sel.empty:
                     fig_sc.add_trace(
@@ -683,15 +709,15 @@ with tab_compare:
                             x=sel["x"],
                             y=sel["y"],
                             mode="markers+text",
-                            text=sel["place_name"].apply(lambda s: s.split(",")[0]),
+                            text=sel["place_name"].str.replace(", Massachusetts", ""),
                             textposition="top center",
                             name="Selected cities",
                             marker=dict(size=14, symbol="diamond"),
                         )
                     )
+
                 fig_sc.update_layout(template="plotly_white", height=560)
                 st.plotly_chart(fig_sc, use_container_width=True)
-
 
 # ==================================================
 # TAB 4: ORIGINS (B05006)
@@ -761,63 +787,70 @@ with tab_origins:
             "If your ETL produces a different naming scheme, update label parsing rules here."
         )
 
-        # Choose a city for origins (default primary)
         cities_df = get_cities(gateway_only=True)
-        origins_city = st.selectbox(
-            "City for origins map",
-            cities_df["place_name"].tolist(),
-            index=max(0, cities_df["place_name"].tolist().index(primary_city)) if primary_city in cities_df["place_name"].tolist() else 0,
-            key="origins_city",
-        )
-        origins_fips = str(cities_df.loc[cities_df["place_name"] == origins_city, "place_fips"].iloc[0])
-
-        # Use latest year from gateway_metrics as default
-        year = st.selectbox("Year", [latest_year], index=0, key="origins_year")
-
-        try:
-            df_b05006 = get_place_source_table_year(origins_fips, SOURCE_BIRTH_TABLE, int(year))
-        except Exception:
-            df_b05006 = pd.DataFrame()
-
-        if df_b05006 is None or df_b05006.empty:
-            st.info(
-                "No B05006 rows returned. Confirm that acs_place_data includes source_table='B05006' "
-                "and that get_place_source_table_year is wired to the correct table/columns."
-            )
+        if cities_df is None or cities_df.empty:
+            st.info("No gateway cities available.")
         else:
-            df_b05006 = df_b05006.copy()
-            df_b05006["estimate"] = pd.to_numeric(df_b05006.get("estimate"), errors="coerce")
-            df_b05006 = df_b05006.dropna(subset=["estimate"])
-
-            df_b05006["country_name"] = df_b05006["variable_label"].apply(label_to_country_name)
-            df_b05006 = df_b05006.dropna(subset=["country_name"])
-
-            df_b05006["iso3"] = df_b05006["country_name"].apply(country_to_iso3)
-            df_map = (
-                df_b05006.dropna(subset=["iso3"])
-                .groupby(["iso3"], as_index=False)["estimate"]
-                .sum()
+            origins_city = st.selectbox(
+                "City for origins map",
+                cities_df["place_name"].tolist(),
+                index=max(0, cities_df["place_name"].tolist().index(primary_city)) if primary_city in cities_df["place_name"].tolist() else 0,
+                key="origins_city",
             )
+            origins_fips = str(cities_df.loc[cities_df["place_name"] == origins_city, "place_fips"].iloc[0])
 
-            if df_map.empty:
-                st.warning("No mappable sovereign countries found for this municipality/year.")
+            year = st.selectbox("Year", [latest_year], index=0, key="origins_year")
+
+            try:
+                df_b05006 = get_place_source_table_year(origins_fips, SOURCE_BIRTH_TABLE, int(year))
+            except Exception:
+                df_b05006 = pd.DataFrame()
+
+            if df_b05006 is None or df_b05006.empty:
+                st.info(
+                    "No B05006 rows returned. Confirm that acs_place_data includes source_table='B05006' "
+                    "and that get_place_source_table_year is wired to the correct table/columns."
+                )
             else:
-                fig_world = px.choropleth(
-                    df_map,
-                    locations="iso3",
-                    color="estimate",
-                    title=f"Foreign-Born Population by Country of Birth (approx.) — {origins_city} ({year})",
-                    labels={"estimate": "Foreign-born (estimate)"},
-                )
-                fig_world.update_layout(template="plotly_white", height=560, margin=dict(l=10, r=10, t=60, b=10))
-                st.plotly_chart(fig_world, use_container_width=True)
+                df_b05006 = df_b05006.copy()
+                # already numeric in query, but guard anyway
+                df_b05006["estimate"] = pd.to_numeric(df_b05006.get("estimate"), errors="coerce")
+                df_b05006 = df_b05006.dropna(subset=["estimate"])
 
-                st.markdown("#### Top mappable origins")
-                top = (
+                df_b05006["country_name"] = df_b05006["variable_label"].apply(label_to_country_name)
+                df_b05006 = df_b05006.dropna(subset=["country_name"])
+
+                df_b05006["iso3"] = df_b05006["country_name"].apply(country_to_iso3)
+
+                df_map = (
                     df_b05006.dropna(subset=["iso3"])
-                    .groupby(["country_name"], as_index=False)["estimate"]
+                    .groupby(["iso3"], as_index=False)["estimate"]
                     .sum()
-                    .sort_values("estimate", ascending=False)
-                    .head(20)
                 )
-                st.dataframe(top, use_container_width=True, hide_index=True)
+
+                if df_map.empty:
+                    st.warning("No mappable sovereign countries found for this municipality/year.")
+                else:
+                    fig_world = px.choropleth(
+                        df_map,
+                        locations="iso3",
+                        color="estimate",
+                        title=f"Foreign-Born Population by Country of Birth (approx.) — {origins_city} ({year})",
+                        labels={"estimate": "Foreign-born (estimate)"},
+                    )
+                    fig_world.update_layout(
+                        template="plotly_white",
+                        height=560,
+                        margin=dict(l=10, r=10, t=60, b=10)
+                    )
+                    st.plotly_chart(fig_world, use_container_width=True)
+
+                    st.markdown("#### Top mappable origins")
+                    top = (
+                        df_b05006.dropna(subset=["iso3"])
+                        .groupby(["country_name"], as_index=False)["estimate"]
+                        .sum()
+                        .sort_values("estimate", ascending=False)
+                        .head(20)
+                    )
+                    st.dataframe(top, use_container_width=True, hide_index=True)
