@@ -454,7 +454,7 @@ with tab_map:
             "LEOMINSTER": (-0.020, 0.020),
             "METHUEN": (0.012, 0.012),
             "MALDEN": (0.010, -0.010),
-            "CHELSEA": (-0.012, 0.010),
+            "CHELSEA": (-0.020, 0.012),
         }
 
         for town_name in locations:
