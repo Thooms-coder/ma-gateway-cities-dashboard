@@ -652,26 +652,33 @@ with tab_map:
         # --------------------------------------------------
         # 3️⃣ Gateway Ranking Panel
         # --------------------------------------------------
-        st.divider()
         st.markdown("## Gateway Position")
 
         rank_df = get_gateway_ranking("poverty_rate", latest_year)
 
         if rank_df is not None and not rank_df.empty:
-            city_rank = rank_df[rank_df["place_fips"].astype(str) == primary_fips]
-            
-            st.write(rank_df.columns)
-            
+
+            city_rank = rank_df[
+                rank_df["place_fips"].astype(str) == str(primary_fips)
+            ]
+
             if not city_rank.empty:
-                r = int(city_rank["rank"].iloc[0])
+
+                r = int(city_rank["rank_within_gateway"].iloc[0])
                 total = len(rank_df)
 
                 col1, col2 = st.columns(2)
 
-                col1.metric("Poverty Rank (Gateway)", f"{r} / {total}")
+                col1.metric(
+                    "Poverty Rank (Gateway)",
+                    f"{r} / {total}"
+                )
+
+                percentile = 100 - int((r / total) * 100)
+
                 col2.metric(
                     "Relative Position",
-                    f"{100 - int((r/total)*100)}th percentile"
+                    f"{percentile}th percentile"
                 )
 
 
