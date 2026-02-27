@@ -414,7 +414,6 @@ with tab_map:
                 marker_line_width=1.0,
                 marker_line_color="rgba(60,60,60,0.6)",
                 hovertemplate="<b>%{location}</b><extra></extra>",
-                selectedpoints=[selected_index] if selected_index is not None else None,
                 selected=dict(marker=dict(opacity=1.0)),
                 unselected=dict(marker=dict(opacity=1.0)),
             )
@@ -545,18 +544,18 @@ with tab_map:
         # --------------------------------------------------
         if map_event and "selection" in map_event and map_event["selection"]["points"]:
             clicked_town = map_event["selection"]["points"][0]["location"]
-            town_key = normalize_geo_key(clicked_town)  # ✅ critical
+            town_key = normalize_geo_key(clicked_town)
 
             if town_key in town_fips_map:
                 new_fips = town_fips_map[town_key]
 
                 if new_fips in gateway_fips:
-                    new_city = cities_all[
-                        cities_all["place_fips"] == new_fips
-                    ]["place_name"].iloc[0]
+                    new_city = cities_all[cities_all["place_fips"] == new_fips]["place_name"].iloc[0]
 
-                    st.session_state["selected_city"] = new_city
-                    st.rerun()
+                    # avoid redundant updates
+                    if st.session_state.get("selected_city") != new_city:
+                        st.session_state["selected_city"] = new_city
+                    # DO NOT st.rerun() here — on_select already reruns
 
         # --------------------------------------------------
         # KPI Narrative
