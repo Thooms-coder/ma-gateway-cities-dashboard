@@ -60,11 +60,11 @@ GATEWAY_ABBREVIATIONS = {
 # --------------------------------------------------
 # Design System Colors
 # --------------------------------------------------
-COLOR_TARGET = "#005ab5"   # selected
-COLOR_BASE = "#dc3220"     # gateway
+COLOR_TARGET = "#4A86C5"   # softened blue (selected)
+COLOR_BASE = "#E36A5C"     # muted red (gateway)
 COLOR_BG = "#f4f5f6"
 COLOR_TEXT = "#2c2f33"
-COLOR_BOSTON = "#009E73"   # Boston/Cambridge highlight
+COLOR_BOSTON = "#5FB3A8"   # softened teal (Boston/Cambridge)
 
 # --------------------------------------------------
 # Page Config
@@ -503,7 +503,7 @@ with tab_map:
                 text=label_text,
                 textfont=dict(
                     size=11,
-                    color="white"
+                    color="#111827"
                 ),
                 textposition="middle center",
                 hoverinfo="skip",
