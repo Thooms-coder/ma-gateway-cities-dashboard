@@ -412,7 +412,7 @@ with tab_map:
                 zmax=3,
                 showscale=False,
                 marker_line_width=1.0,
-                marker_line_color="rgba(60,65,75,0.5)",
+                marker_line_color="rgba(60,60,60,0.6)",
                 hovertemplate="<b>%{location}</b><extra></extra>",
                 selectedpoints=[selected_index] if selected_index is not None else None,
                 selected=dict(marker=dict(opacity=1.0)),
