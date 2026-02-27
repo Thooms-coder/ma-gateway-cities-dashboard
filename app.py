@@ -56,6 +56,11 @@ GATEWAY_ABBREVIATIONS = {
     "Westfield city, Massachusetts": "WES",
 }
 
+NORMALIZED_ABBR = {
+    normalize_geo_key(clean_place_label(k)): v
+    for k, v in GATEWAY_ABBREVIATIONS.items()
+}
+
 # --------------------------------------------------
 # Design System Colors
 # --------------------------------------------------
@@ -450,13 +455,9 @@ with tab_map:
 
                 full_name = cities_all[cities_all["place_fips"] == fips]["place_name"].iloc[0]
 
-                # ---- DEBUG START ----
-                if "BARNSTABLE" in full_name.upper():
-                    st.write("Full name from DB:", full_name)
-                    st.write("Exact dict match:", full_name in GATEWAY_ABBREVIATIONS)
-                # ---- DEBUG END ----
+                city_key = normalize_geo_key(clean_place_label(full_name))
+                abbr = NORMALIZED_ABBR.get(city_key)
 
-                abbr = GATEWAY_ABBREVIATIONS.get(full_name)
                 if not abbr:
                     continue
 
