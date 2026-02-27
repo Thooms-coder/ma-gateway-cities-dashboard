@@ -451,7 +451,7 @@ with tab_map:
         # Manual label offsets (lat, lon)
         # --------------------------------------------------
         LABEL_OFFSETS = {
-            "LEOMINSTER": (0.015, -0.015),
+            "LEOMINSTER": (-0.020, 0.020),
             "METHUEN": (0.012, 0.012),
             "MALDEN": (0.010, -0.010),
             "CHELSEA": (-0.012, 0.010),
