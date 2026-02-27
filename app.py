@@ -307,8 +307,10 @@ with tab_map:
         }
 
         allowed_gateway_names = set(
-            normalize(clean_place_label(n))
-            for n in cities_all[cities_all["place_fips"].isin(gateway_fips)]["place_name"]
+            normalize_registry(n)
+            for n in cities_all[
+                cities_all["place_fips"].isin(gateway_fips)
+            ]["place_name"]
         )
 
         boston_cambridge_names = set(
@@ -358,7 +360,7 @@ with tab_map:
             selected_index = None
 
             for i, town_name in enumerate(locations):
-                town_norm = normalize(town_name)
+                town_norm = normalize_registry(town_name)
 
                 if town_norm in town_fips_map_local and town_fips_map_local[town_norm] == selected_fips:
                     z_values.append(3)
