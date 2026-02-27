@@ -656,6 +656,16 @@ with tab_map:
         st.markdown("## Gateway Position")
 
         rank_df = get_gateway_ranking("poverty_rate", latest_year)
+        
+        st.write("Expected Gateway Count:", len(gateway_fips))
+        st.write("Returned Ranking Rows:", len(rank_df))
+
+        returned_fips = set(rank_df["place_fips"].astype(str))
+        expected_fips = set(gateway_fips)
+
+        missing_fips = expected_fips - returned_fips
+
+        st.write("Missing FIPS:", missing_fips)
 
         if rank_df is not None and not rank_df.empty:
 
@@ -682,15 +692,6 @@ with tab_map:
                     f"{percentile}th percentile"
                 )
 
-        st.write("Expected Gateway Count:", len(gateway_fips))
-        st.write("Returned Ranking Rows:", len(rank_df))
-
-        returned_fips = set(rank_df["place_fips"].astype(str))
-        expected_fips = set(gateway_fips)
-
-        missing_fips = expected_fips - returned_fips
-
-        st.write("Missing FIPS:", missing_fips)
 
 # ==================================================
 # TAB 2: INVESTIGATIVE THEMES (Story Angles)
