@@ -358,18 +358,6 @@ with tab_map:
 
             if lats and lons:
                 town_centroids[town_key] = (sum(lats) / len(lats), sum(lons) / len(lons))
-
-        st.write("Does BARNSTABLE exist in centroids?",
-                "BARNSTABLE" in town_centroids)
-
-        st.write("Does BARNSTABLE exist in allowed_gateway_names?",
-                "BARNSTABLE" in allowed_gateway_names)
-
-        st.write("Centroid keys containing BARN:",
-                [k for k in town_centroids.keys() if "BARN" in k])
-
-        st.write("Gateway keys containing BARN:",
-                [k for k in allowed_gateway_names if "BARN" in k])
   
         @st.cache_data
         
@@ -461,6 +449,13 @@ with tab_map:
                 fips = town_fips_map[town_key]
 
                 full_name = cities_all[cities_all["place_fips"] == fips]["place_name"].iloc[0]
+
+                # ---- DEBUG START ----
+                if "BARNSTABLE" in full_name.upper():
+                    st.write("Full name from DB:", full_name)
+                    st.write("Exact dict match:", full_name in GATEWAY_ABBREVIATIONS)
+                # ---- DEBUG END ----
+
                 abbr = GATEWAY_ABBREVIATIONS.get(full_name)
                 if not abbr:
                     continue
