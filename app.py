@@ -294,8 +294,15 @@ with tab_map:
         st.markdown("### Geographic Context")
 
         # Build town -> fips map
+        def normalize_registry(name: str) -> str:
+            s = str(name).replace(", Massachusetts", "")
+            s = re.sub(r"\b(city|town|cdp)\b", "", s, flags=re.IGNORECASE)
+            s = re.sub(r"\s+", " ", s).strip()
+            return s.upper()
+
+
         town_fips_map = {
-            normalize(clean_place_label(name)): fips
+            normalize_registry(name): fips
             for name, fips in zip(cities_all["place_name"], cities_all["place_fips"])
         }
 
