@@ -482,7 +482,7 @@ with tab_map:
                 mode="text",
                 text=label_text,
                 textfont=dict(
-                    size=9,
+                    size=11,
                     color="#111827"
                 ),
                 textposition="middle center",
