@@ -476,6 +476,15 @@ with tab_map:
             unsafe_allow_html=True,
         )
 
+        st.markdown("### Gateway City Abbreviations")
+
+        legend_cols = st.columns(4)
+
+        for i, (full, abbr) in enumerate(GATEWAY_ABBREVIATIONS.items()):
+            legend_cols[i % 4].markdown(
+                f"**{abbr}** — {full.split(',')[0]}"
+            )
+    
         # --------------------------------------------------
         # Click-to-select (no more multi-add logic)
         # --------------------------------------------------
@@ -759,17 +768,6 @@ with tab_compare:
                 yaxis_title=catalog.get(metric_to_compare, {}).get("unit", ""),
                 legend=dict(title=""),
             )
-
-            st.markdown("### Gateway City Abbreviations")
-
-            legend_cols = st.columns(4)
-
-            for i, (full, abbr) in enumerate(GATEWAY_ABBREVIATIONS.items()):
-                legend_cols[i % 4].markdown(
-                    f"**{abbr}** — {full.split(',')[0]}"
-                )
-                
-            st.plotly_chart(fig, use_container_width=True)
 
         # ==================================================
         # Cross-metric scatter
