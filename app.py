@@ -502,7 +502,7 @@ with tab_map:
                 mode="text",
                 text=label_text,
                 textfont=dict(
-                    size=11,
+                    size=12,
                     color="#111827"
                 ),
                 textposition="middle center",
