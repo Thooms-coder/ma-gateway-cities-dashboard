@@ -494,24 +494,7 @@ with tab_map:
                 else:
                     label_sizes.append(11)
                     label_colors.append("#111827")
-                    
-        # --- White halo layer ---
-        fig_map.add_trace(
-            go.Scattermapbox(
-                lat=label_lats,
-                lon=label_lons,
-                mode="text",
-                text=label_text,
-                textfont=dict(
-                    size=14,
-                    color="white"
-                ),
-                hoverinfo="skip",
-                showlegend=False,
-            )
-        )
 
-        # --- Foreground dark text ---
         fig_map.add_trace(
             go.Scattermapbox(
                 lat=label_lats,
@@ -520,10 +503,12 @@ with tab_map:
                 text=label_text,
                 textfont=dict(
                     size=11,
-                    color="#111827"
+                    color="white"
                 ),
+                textposition="middle center",
                 hoverinfo="skip",
                 showlegend=False,
+                below=""  # <-- critical: draw above choropleth
             )
         )
 
