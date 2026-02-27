@@ -556,35 +556,121 @@ with tab_map:
 
                         st.rerun()
 
+        # ==================================================
+        # CITY INTELLIGENCE PANEL
+        # ==================================================
+
+        st.divider()
+        st.markdown(f"# {primary_city.split(',')[0]} — City Profile")
+
         # --------------------------------------------------
-        # KPI Narrative
+        # 1️⃣ Snapshot Grid
         # --------------------------------------------------
-        fb_tr = get_gateway_metric_trend(primary_fips, "foreign_born_share")
+        st.markdown("## Snapshot (Latest Year)")
 
-        if fb_tr is not None and not fb_tr.empty and len(fb_tr) >= 2:
-            fb_tr = fb_tr.copy()
-            fb_tr["year"] = pd.to_numeric(fb_tr["year"], errors="coerce")
-            fb_tr = fb_tr.dropna(subset=["year"]).sort_values("year")
+        CORE_METRICS = [
+            "total_population",
+            "foreign_born_share",
+            "median_income",
+            "poverty_rate",
+            "rent_burden_30_plus",
+            "median_home_value",
+            "gini_index",
+        ]
 
-            latest_val = float(fb_tr["value"].iloc[-1])
-            start_val = float(fb_tr["value"].iloc[0])
+        cols = st.columns(4)
 
-            col_kpi, col_lede = st.columns([1, 2.5])
+        for i, mk in enumerate(CORE_METRICS):
+            meta = catalog.get(mk, {"metric_label": mk})
+            snap = get_gateway_metric_snapshot(primary_fips, mk)
 
-            with col_kpi:
-                st.metric("Foreign-Born Share", f"{latest_val:.1f}%")
-                st.metric("Period Change", f"{latest_val - start_val:+.1f} pts")
+            if snap is None or snap.empty:
+                cols[i % 4].metric(meta.get("metric_label", mk), "—")
+                continue
 
-            with col_lede:
-                st.markdown(
-                    f"""
-                    Over the observed period, the foreign-born share in 
-                    <b>{primary_city}</b> is now <b>{latest_val:.1f}%</b>.
-                    """,
-                    unsafe_allow_html=True,
-                )
+            value = snap["value"].iloc[0]
+            delta = snap.get("delta_5yr", pd.Series([None])).iloc[0]
+
+            cols[i % 4].metric(
+                meta.get("metric_label", mk),
+                fmt_value(value, meta),
+                fmt_delta(delta, meta),
+            )
+
+        # --------------------------------------------------
+        # 2️⃣ Structural Trend Panel
+        # --------------------------------------------------
+        st.divider()
+        st.markdown("## Structural Trend")
+
+        STRUCTURAL_METRICS = [
+            "median_income",
+            "poverty_rate",
+            "rent_burden_30_plus",
+            "foreign_born_share",
+        ]
+
+        trend_metric = st.selectbox(
+            "Select trend metric",
+            STRUCTURAL_METRICS,
+            format_func=lambda k: catalog.get(k, {}).get("metric_label", k),
+            key="map_trend_focus",
+        )
+
+        city_tr = get_gateway_metric_trend(primary_fips, trend_metric)
+        state_tr = get_state_metric_trend(trend_metric)
+
+        if city_tr is not None and not city_tr.empty:
+            fig = go.Figure()
+
+            fig.add_trace(go.Scatter(
+                x=city_tr["year"],
+                y=city_tr["value"],
+                mode="lines",
+                name=primary_city
+            ))
+
+            if state_tr is not None and not state_tr.empty:
+                fig.add_trace(go.Scatter(
+                    x=state_tr["year"],
+                    y=state_tr["value"],
+                    mode="lines",
+                    name="Massachusetts"
+                ))
+
+            fig.update_layout(
+                template="plotly_white",
+                height=420,
+                xaxis_title="Year",
+                yaxis_title=catalog.get(trend_metric, {}).get("unit", ""),
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("Foreign-born share time series not available.")
+            st.info("No trend data available.")
+
+        # --------------------------------------------------
+        # 3️⃣ Gateway Ranking Panel
+        # --------------------------------------------------
+        st.divider()
+        st.markdown("## Gateway Position")
+
+        rank_df = get_gateway_ranking("poverty_rate", latest_year)
+
+        if rank_df is not None and not rank_df.empty:
+            city_rank = rank_df[rank_df["place_fips"].astype(str) == primary_fips]
+
+            if not city_rank.empty:
+                r = int(city_rank["rank"].iloc[0])
+                total = len(rank_df)
+
+                col1, col2 = st.columns(2)
+
+                col1.metric("Poverty Rank (Gateway)", f"{r} / {total}")
+                col2.metric(
+                    "Relative Position",
+                    f"{100 - int((r/total)*100)}th percentile"
+                )
 
 
 # ==================================================
