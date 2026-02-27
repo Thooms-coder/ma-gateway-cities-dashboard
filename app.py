@@ -500,6 +500,7 @@ with tab_map:
         map_event = st.plotly_chart(
             fig_map,
             use_container_width=True,
+            on_select="rerun",
             key="map_select",
         )
 
@@ -525,12 +526,14 @@ with tab_map:
             )
 
         # --------------------------------------------------
-        # Click-to-select (robust)
+        # Click-to-select (correct Streamlit pattern)
         # --------------------------------------------------
-        if map_event and isinstance(map_event, dict):
-            points = (map_event.get("selection") or {}).get("points") or []
+        selection = st.session_state.get("map_select")
 
-            # only keep choropleth clicks
+        if selection and selection.get("selection"):
+            points = selection["selection"].get("points", [])
+
+            # Only keep choropleth clicks (must have 'location')
             loc_points = [p for p in points if p.get("location")]
 
             if loc_points:
@@ -547,6 +550,10 @@ with tab_map:
 
                     if st.session_state.get("selected_city") != new_city:
                         st.session_state["selected_city"] = new_city
+
+                        # Clear selection to prevent replay
+                        st.session_state["map_select"]["selection"]["points"] = []
+
                         st.rerun()
 
         # --------------------------------------------------
