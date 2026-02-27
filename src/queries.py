@@ -526,10 +526,6 @@ def get_distribution_for_variable(
     year: int,
     gateway_only: bool = True,
 ) -> pd.DataFrame:
-    """
-    Returns all place values for one variable in one year for histogram/boxplots.
-    """
-    where_gateway = "WHERE gc.is_gateway_city = TRUE" if gateway_only else ""
     query = f"""
         SELECT
             d.place_fips::text,
@@ -543,13 +539,13 @@ def get_distribution_for_variable(
         FROM {ACS_PLACE} d
         JOIN {CITY_REGISTRY} gc
           ON d.place_fips::text = gc.place_fips::text
-        {where_gateway}
-        AND d.acs_end_year = :year
-        AND d.variable_id = :variable_id
+        WHERE 1=1
+          {"AND gc.is_gateway_city = TRUE" if gateway_only else ""}
+          AND d.acs_end_year = :year
+          AND d.variable_id = :variable_id
         ORDER BY d.estimate NULLS LAST;
     """
     return run_query(query, {"year": int(year), "variable_id": variable_id})
-
 
 # ============================================================
 # Convenience: "classic" metrics using variable_ids
@@ -690,6 +686,16 @@ def get_latest_year_available() -> int:
         return 0
     return int(df["y"].iloc[0])
 
+def get_available_gateway_years() -> List[int]:
+    df = run_query(f"""
+        SELECT DISTINCT year
+        FROM {GATEWAY_METRICS}
+        WHERE year IS NOT NULL
+        ORDER BY year;
+    """)
+    if df is None or df.empty:
+        return []
+    return [int(y) for y in df["year"].tolist()]
 
 def get_gateway_metric_trend(place_fips: str, metric_key: str) -> pd.DataFrame:
     return run_query(f"""
@@ -716,7 +722,23 @@ def get_state_metric_trend(metric_key: str) -> pd.DataFrame:
     """, {"metric_key": metric_key})
 
 
-def get_gateway_metric_snapshot(place_fips: str, metric_key: str) -> pd.DataFrame:
+def get_gateway_metric_snapshot(place_fips: str, metric_key: str, year: Optional[int] = None) -> pd.DataFrame:
+    if year is None:
+        # keep old behavior (latest) for callers that don't pass year
+        return run_query(f"""
+            SELECT year,
+                   metric_value AS value,
+                   delta_5yr,
+                   delta_10yr,
+                   rank_within_gateway,
+                   rank_change_5yr
+            FROM {GATEWAY_METRICS}
+            WHERE place_fips::text = :place_fips
+              AND metric_key = :metric_key
+            ORDER BY year DESC
+            LIMIT 1;
+        """, {"place_fips": str(place_fips), "metric_key": metric_key})
+
     return run_query(f"""
         SELECT year,
                metric_value AS value,
@@ -727,9 +749,9 @@ def get_gateway_metric_snapshot(place_fips: str, metric_key: str) -> pd.DataFram
         FROM {GATEWAY_METRICS}
         WHERE place_fips::text = :place_fips
           AND metric_key = :metric_key
-        ORDER BY year DESC
+          AND year = :year
         LIMIT 1;
-    """, {"place_fips": str(place_fips), "metric_key": metric_key})
+    """, {"place_fips": str(place_fips), "metric_key": metric_key, "year": int(year)})
 
 
 def get_gateway_ranking(metric_key: str, year: int) -> pd.DataFrame:

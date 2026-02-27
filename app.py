@@ -25,6 +25,7 @@ from src.queries import (
     get_state_metric_trend,
     get_gateway_ranking,
     get_gateway_scatter,
+    get_available_gateway_years,
 )
 from src.story_angles import STORY_ANGLES
 
@@ -218,6 +219,22 @@ if not latest_year:
     st.error("No data found in public.gateway_metrics. Verify your ETL/materialized view refresh.")
     st.stop()
 
+available_years = get_available_gateway_years()
+if not available_years:
+    st.error("No years available in gateway_metrics.")
+    st.stop()
+
+latest_year = max(available_years)
+
+if "selected_year" not in st.session_state:
+    st.session_state["selected_year"] = latest_year
+
+selected_year = st.selectbox(
+    "Year",
+    options=available_years,
+    index=available_years.index(st.session_state["selected_year"]),
+    key="selected_year",
+)
 
 def fmt_value(v: float, meta: Dict) -> str:
     if pd.isna(v):
@@ -582,7 +599,7 @@ with tab_map:
 
         for i, mk in enumerate(CORE_METRICS):
             meta = catalog.get(mk, {"metric_label": mk})
-            snap = get_gateway_metric_snapshot(primary_fips, mk)
+            snap = get_gateway_metric_snapshot(primary_fips, mk, selected_year)
 
             if snap is None or snap.empty:
                 cols[i % 4].metric(meta.get("metric_label", mk), "—")
@@ -655,7 +672,7 @@ with tab_map:
         st.divider()
         st.markdown("## Gateway Position")
 
-        rank_df = get_gateway_ranking("poverty_rate", latest_year)
+        rank_df = get_gateway_ranking("poverty_rate", selected_year)
 
         if rank_df is not None and not rank_df.empty:
 
@@ -949,8 +966,8 @@ with tab_compare:
         with c3:
             sc_year = st.selectbox(
                 "Year",
-                [latest_year],
-                index=0,
+                available_years,
+                index=available_years.index(selected_year),
                 key="scatter_year",
             )
 
