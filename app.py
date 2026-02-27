@@ -500,7 +500,6 @@ with tab_map:
         map_event = st.plotly_chart(
             fig_map,
             use_container_width=True,
-            on_select="rerun",
             key="map_select",
         )
 
@@ -529,34 +528,25 @@ with tab_map:
         # Click-to-select (robust)
         # --------------------------------------------------
         if map_event and isinstance(map_event, dict):
-            sel = map_event.get("selection") or {}
-            points = sel.get("points") or []
+            points = (map_event.get("selection") or {}).get("points") or []
 
-            # Keep only choropleth points (they have 'location')
-            loc_points = [p for p in points if isinstance(p, dict) and p.get("location")]
+            # only keep choropleth clicks
+            loc_points = [p for p in points if p.get("location")]
 
             if loc_points:
-                # Use the most recent point (avoid stale selection[0])
                 clicked_town = loc_points[-1]["location"]
                 town_key = normalize_geo_key(clicked_town)
 
                 new_fips = town_fips_map.get(town_key)
 
-                if new_fips and (new_fips in gateway_fips):
+                if new_fips and new_fips in gateway_fips:
                     new_city = cities_all.loc[
-                        cities_all["place_fips"] == str(new_fips), "place_name"
+                        cities_all["place_fips"] == str(new_fips),
+                        "place_name"
                     ].iloc[0]
 
                     if st.session_state.get("selected_city") != new_city:
                         st.session_state["selected_city"] = new_city
-
-                        # Optional: clear selection so it doesn't "stick" and replay
-                        try:
-                            st.session_state["map_select"]["selection"]["points"] = []
-                        except Exception:
-                            pass
-
-                        # Critical: make the new selected_city drive the UI immediately
                         st.rerun()
 
         # --------------------------------------------------
