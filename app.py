@@ -28,6 +28,33 @@ from src.queries import (
 )
 from src.story_angles import STORY_ANGLES
 
+GATEWAY_ABBREVIATIONS = {
+    "Springfield city, Massachusetts": "SPR",
+    "Worcester city, Massachusetts": "WOR",
+    "Lowell city, Massachusetts": "LOW",
+    "Brockton city, Massachusetts": "BRO",
+    "Fall River city, Massachusetts": "FAL",
+    "New Bedford city, Massachusetts": "NB",
+    "Lynn city, Massachusetts": "LYN",
+    "Holyoke city, Massachusetts": "HLY",
+    "Lawrence city, Massachusetts": "LAW",
+    "Haverhill city, Massachusetts": "HAV",
+    "Chelsea city, Massachusetts": "CHE",
+    "Malden city, Massachusetts": "MAL",
+    "Revere city, Massachusetts": "REV",
+    "Salem city, Massachusetts": "SAL",
+    "Taunton city, Massachusetts": "TAU",
+    "Pittsfield city, Massachusetts": "PIT",
+    "Chicopee city, Massachusetts": "CHI",
+    "Everett city, Massachusetts": "EVE",
+    "Quincy city, Massachusetts": "QUI",
+    "Attleboro city, Massachusetts": "ATT",
+    "Leominster city, Massachusetts": "LEO",
+    "Methuen city, Massachusetts": "MET",
+    "Peabody city, Massachusetts": "PEA",
+    "Barnstable Town, Massachusetts": "BAR",
+    "Westfield city, Massachusetts": "WES",
+}
 
 # --------------------------------------------------
 # Design System Colors
@@ -284,7 +311,31 @@ with tab_map:
 
         locations = [f["properties"]["TOWN"] for f in ma_geo["features"]]
 
+        # Compute centroids for labeling
+        town_centroids = {}
+
+        for feature in ma_geo["features"]:
+            town = feature["properties"]["TOWN"]
+            coords = feature["geometry"]["coordinates"]
+
+            lats = []
+            lons = []
+
+            def extract(c):
+                if isinstance(c[0], list):
+                    for sub in c:
+                        extract(sub)
+                else:
+                    lons.append(c[0])
+                    lats.append(c[1])
+
+            extract(coords)
+
+            if lats and lons:
+                town_centroids[town] = (sum(lats) / len(lats), sum(lons) / len(lons))
+                
         @st.cache_data
+        
         def build_map(
             geojson: dict,
             locations: List[str],
@@ -355,6 +406,55 @@ with tab_map:
             center_lat,
             center_lon,
             boston_cambridge_names,
+        )
+
+        # --------------------------------------------
+        # Add Gateway Abbreviation Labels
+        # --------------------------------------------
+        label_lats = []
+        label_lons = []
+        label_text = []
+        label_sizes = []
+        label_colors = []
+
+        for town_name in locations:
+            town_norm = normalize(town_name)
+
+            if town_norm in allowed_gateway_names and town_name in town_centroids:
+                fips = town_fips_map[town_norm]
+
+                full_name = cities_all[
+                    cities_all["place_fips"] == fips
+                ]["place_name"].iloc[0]
+
+                abbr = GATEWAY_ABBREVIATIONS.get(full_name)
+                if not abbr:
+                    continue
+
+                lat, lon = town_centroids[town_name]
+
+                label_lats.append(lat)
+                label_lons.append(lon)
+                label_text.append(abbr)
+
+                # Emphasize selected city
+                if fips == primary_fips:
+                    label_sizes.append(15)
+                    label_colors.append(COLOR_TARGET)
+                else:
+                    label_sizes.append(11)
+                    label_colors.append("#111827")
+
+        fig_map.add_trace(
+            go.Scattermapbox(
+                lat=label_lats,
+                lon=label_lons,
+                mode="text",
+                text=label_text,
+                textfont=dict(size=12, color="#111827"),
+                hoverinfo="skip",
+                showlegend=False,
+            )
         )
 
         map_event = st.plotly_chart(
@@ -660,6 +760,15 @@ with tab_compare:
                 legend=dict(title=""),
             )
 
+            st.markdown("### Gateway City Abbreviations")
+
+            legend_cols = st.columns(4)
+
+            for i, (full, abbr) in enumerate(GATEWAY_ABBREVIATIONS.items()):
+                legend_cols[i % 4].markdown(
+                    f"**{abbr}** — {full.split(',')[0]}"
+                )
+                
             st.plotly_chart(fig, use_container_width=True)
 
         # ==================================================
