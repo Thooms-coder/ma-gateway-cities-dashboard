@@ -308,20 +308,6 @@ with tab_map:
         st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
         st.markdown("### Geographic Context")
 
-        def normalize_geo_key(name: str) -> str:
-            s = str(name)
-
-            # remove state
-            s = s.replace(", Massachusetts", "")
-
-            # remove city/town anywhere
-            s = re.sub(r"\b(city|town|cdp)\b", "", s, flags=re.IGNORECASE)
-
-            # collapse whitespace
-            s = re.sub(r"\s+", " ", s)
-
-            return s.strip().upper()
-
         town_fips_map = {
             normalize_geo_key(name): fips
             for name, fips in zip(cities_all["place_name"], cities_all["place_fips"])
@@ -420,7 +406,7 @@ with tab_map:
 
             fig = go.Figure(trace)
             fig.update_layout(
-                clickmode="event",
+                clickmode="event+select",
                 mapbox=dict(style="white-bg", center=dict(lat=c_lat, lon=c_lon), zoom=8),
                 margin=dict(l=0, r=0, t=0, b=0),
                 height=825,
@@ -538,24 +524,40 @@ with tab_map:
             legend_cols[i % 4].markdown(
                 f"**{abbr}** — {full.split(',')[0]}"
             )
-    
+
         # --------------------------------------------------
-        # Click-to-select (no more multi-add logic)
+        # Click-to-select (robust)
         # --------------------------------------------------
-        if map_event and "selection" in map_event and map_event["selection"]["points"]:
-            clicked_town = map_event["selection"]["points"][0]["location"]
-            town_key = normalize_geo_key(clicked_town)
+        if map_event and isinstance(map_event, dict):
+            sel = map_event.get("selection") or {}
+            points = sel.get("points") or []
 
-            if town_key in town_fips_map:
-                new_fips = town_fips_map[town_key]
+            # Keep only choropleth points (they have 'location')
+            loc_points = [p for p in points if isinstance(p, dict) and p.get("location")]
 
-                if new_fips in gateway_fips:
-                    new_city = cities_all[cities_all["place_fips"] == new_fips]["place_name"].iloc[0]
+            if loc_points:
+                # Use the most recent point (avoid stale selection[0])
+                clicked_town = loc_points[-1]["location"]
+                town_key = normalize_geo_key(clicked_town)
 
-                    # avoid redundant updates
+                new_fips = town_fips_map.get(town_key)
+
+                if new_fips and (new_fips in gateway_fips):
+                    new_city = cities_all.loc[
+                        cities_all["place_fips"] == str(new_fips), "place_name"
+                    ].iloc[0]
+
                     if st.session_state.get("selected_city") != new_city:
                         st.session_state["selected_city"] = new_city
-                    # DO NOT st.rerun() here — on_select already reruns
+
+                        # Optional: clear selection so it doesn't "stick" and replay
+                        try:
+                            st.session_state["map_select"]["selection"]["points"] = []
+                        except Exception:
+                            pass
+
+                        # Critical: make the new selected_city drive the UI immediately
+                        st.rerun()
 
         # --------------------------------------------------
         # KPI Narrative
