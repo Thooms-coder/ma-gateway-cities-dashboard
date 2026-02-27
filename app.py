@@ -294,20 +294,25 @@ with tab_map:
         st.markdown("### Geographic Context")
 
         # Build town -> fips map
-        def normalize_registry(name: str) -> str:
-            s = str(name).replace(", Massachusetts", "")
-            s = re.sub(r"\b(city|town|cdp)\b", "", s, flags=re.IGNORECASE)
-            s = re.sub(r"\s+", " ", s).strip()
-            return s.upper()
+        def normalize_name(name: str) -> str:
+            s = str(name)
+
+            # Remove state suffix
+            s = s.replace(", Massachusetts", "")
+
+            # Standardize whitespace
+            s = re.sub(r"\s+", " ", s)
+
+            return s.strip().upper()
 
 
         town_fips_map = {
-            normalize_registry(name): fips
+            normalize_name(name): fips
             for name, fips in zip(cities_all["place_name"], cities_all["place_fips"])
         }
 
         allowed_gateway_names = set(
-            normalize_registry(n)
+            normalize_name(n)
             for n in cities_all[
                 cities_all["place_fips"].isin(gateway_fips)
             ]["place_name"]
@@ -360,7 +365,7 @@ with tab_map:
             selected_index = None
 
             for i, town_name in enumerate(locations):
-                town_norm = normalize_registry(town_name)
+                town_norm = normalize_name(town_name)
 
                 if town_norm in town_fips_map_local and town_fips_map_local[town_norm] == selected_fips:
                     z_values.append(3)
