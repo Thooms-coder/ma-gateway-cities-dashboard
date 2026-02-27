@@ -473,9 +473,14 @@ with tab_map:
                 lon=label_lons,
                 mode="text",
                 text=label_text,
-                textfont=dict(size=12, color="#111827"),
+                textfont=dict(
+                    size=11,
+                    color="#111827"
+                ),
+                textposition="middle center",
                 hoverinfo="skip",
                 showlegend=False,
+                below=""  # <-- critical: draw above choropleth
             )
         )
 
