@@ -409,21 +409,16 @@ with tab_map:
             fig = go.Figure(trace)
 
             # ---------------------------------------
-            # Gateway City Structured Callouts
+            # CLEAN EDGE-STACKED GATEWAY CALLOUTS
             # ---------------------------------------
 
-            import math
+            LEFT_X = min_lon - 0.6
+            RIGHT_X = max_lon + 0.6
 
-            # Define edge anchors (relative to map bounds)
-            LEFT_X = min_lon - 0.4
-            RIGHT_X = max_lon + 0.4
-            TOP_Y = max_lat + 0.3
-            BOTTOM_Y = min_lat - 0.3
+            spacing = 0.12
 
-            west_labels = []
-            east_labels = []
-            north_labels = []
-            south_labels = []
+            west_group = []
+            east_group = []
 
             for town_name in locations:
                 town_norm = normalize(town_name)
@@ -431,18 +426,16 @@ with tab_map:
                 if town_norm in allowed_gateway_names and town_name in town_centroids:
                     lat, lon = town_centroids[town_name]
 
-                    # classify region
-                    if lon < center_lon - 0.3:
-                        west_labels.append((town_name, lat, lon))
-                    elif lon > center_lon + 0.3:
-                        east_labels.append((town_name, lat, lon))
-                    elif lat > center_lat:
-                        north_labels.append((town_name, lat, lon))
+                    if lon < center_lon:
+                        west_group.append((town_name, lat, lon))
                     else:
-                        south_labels.append((town_name, lat, lon))
+                        east_group.append((town_name, lat, lon))
 
+            # sort north-to-south for clean stacking
+            west_group = sorted(west_group, key=lambda x: -x[1])
+            east_group = sorted(east_group, key=lambda x: -x[1])
 
-            def draw_group(group, side):
+            def draw_side(group, side):
                 line_lats = []
                 line_lons = []
                 label_lats = []
@@ -451,22 +444,10 @@ with tab_map:
                 dot_lats = []
                 dot_lons = []
 
-                spacing = 0.08
+                for i, (name, lat, lon) in enumerate(group):
 
-                for i, (name, lat, lon) in enumerate(sorted(group, key=lambda x: x[1])):
-
-                    if side == "west":
-                        label_lat = max_lat - i * spacing
-                        label_lon = LEFT_X
-                    elif side == "east":
-                        label_lat = max_lat - i * spacing
-                        label_lon = RIGHT_X
-                    elif side == "north":
-                        label_lat = TOP_Y
-                        label_lon = min_lon + i * 0.15
-                    else:  # south
-                        label_lat = BOTTOM_Y
-                        label_lon = min_lon + i * 0.15
+                    label_lat = max_lat - i * spacing
+                    label_lon = LEFT_X if side == "west" else RIGHT_X
 
                     dot_lats.append(lat)
                     dot_lons.append(lon)
@@ -478,19 +459,19 @@ with tab_map:
                     label_lons.append(label_lon)
                     label_text.append(name)
 
-                # anchor dots
+                # dots
                 fig.add_trace(
                     go.Scattermapbox(
                         lat=dot_lats,
                         lon=dot_lons,
                         mode="markers",
-                        marker=dict(size=6, color="#111827"),
+                        marker=dict(size=5, color="#111827"),
                         hoverinfo="skip",
                         showlegend=False,
                     )
                 )
 
-                # pointer lines
+                # lines
                 fig.add_trace(
                     go.Scattermapbox(
                         lat=line_lats,
@@ -510,17 +491,14 @@ with tab_map:
                         mode="text",
                         text=label_text,
                         textfont=dict(size=12, color="#111827"),
-                        textposition="middle left" if side in ["east"] else "middle right",
+                        textposition="middle right" if side == "west" else "middle left",
                         hoverinfo="skip",
                         showlegend=False,
                     )
                 )
 
-
-            draw_group(west_labels, "west")
-            draw_group(east_labels, "east")
-            draw_group(north_labels, "north")
-            draw_group(south_labels, "south")
+            draw_side(west_group, "west")
+            draw_side(east_group, "east")
 
             fig.update_layout(
                 clickmode="event+select",
