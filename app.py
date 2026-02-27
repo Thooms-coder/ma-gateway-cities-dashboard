@@ -325,11 +325,12 @@ with tab_map:
 
         locations = [f["properties"]["TOWN"] for f in ma_geo["features"]]
 
-        # Compute centroids for labeling
+        # Compute centroids for labeling (keyed by normalized town name)
         town_centroids = {}
 
         for feature in ma_geo["features"]:
-            town = feature["properties"]["TOWN"]
+            town_raw = feature["properties"]["TOWN"]
+            town_key = normalize_to_geo(town_raw)  # ✅ normalize here
             coords = feature["geometry"]["coordinates"]
 
             lats = []
@@ -346,7 +347,7 @@ with tab_map:
             extract(coords)
 
             if lats and lons:
-                town_centroids[town] = (sum(lats) / len(lats), sum(lons) / len(lons))
+                town_centroids[town_key] = (sum(lats) / len(lats), sum(lons) / len(lons))
                 
         @st.cache_data
         
@@ -432,20 +433,17 @@ with tab_map:
         label_colors = []
 
         for town_name in locations:
-            town_norm = normalize(town_name)
+            town_key = normalize_to_geo(town_name)  # ✅ use same normalization
 
-            if town_norm in allowed_gateway_names and town_name in town_centroids:
-                fips = town_fips_map[town_norm]
+            if town_key in allowed_gateway_names and town_key in town_centroids:
+                fips = town_fips_map[town_key]
 
-                full_name = cities_all[
-                    cities_all["place_fips"] == fips
-                ]["place_name"].iloc[0]
-
+                full_name = cities_all[cities_all["place_fips"] == fips]["place_name"].iloc[0]
                 abbr = GATEWAY_ABBREVIATIONS.get(full_name)
                 if not abbr:
                     continue
 
-                lat, lon = town_centroids[town_name]
+                lat, lon = town_centroids[town_key]
 
                 label_lats.append(lat)
                 label_lons.append(lon)
@@ -504,10 +502,10 @@ with tab_map:
         # --------------------------------------------------
         if map_event and "selection" in map_event and map_event["selection"]["points"]:
             clicked_town = map_event["selection"]["points"][0]["location"]
-            town_norm = normalize(clicked_town)
+            town_key = normalize_to_geo(clicked_town)  # ✅ critical
 
-            if town_norm in town_fips_map:
-                new_fips = town_fips_map[town_norm]
+            if town_key in town_fips_map:
+                new_fips = town_fips_map[town_key]
 
                 if new_fips in gateway_fips:
                     new_city = cities_all[
