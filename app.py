@@ -358,7 +358,19 @@ with tab_map:
 
             if lats and lons:
                 town_centroids[town_key] = (sum(lats) / len(lats), sum(lons) / len(lons))
-                
+
+        st.write("Does BARNSTABLE exist in centroids?",
+                "BARNSTABLE" in town_centroids)
+
+        st.write("Does BARNSTABLE exist in allowed_gateway_names?",
+                "BARNSTABLE" in allowed_gateway_names)
+
+        st.write("Centroid keys containing BARN:",
+                [k for k in town_centroids.keys() if "BARN" in k])
+
+        st.write("Gateway keys containing BARN:",
+                [k for k in allowed_gateway_names if "BARN" in k])
+  
         @st.cache_data
         
         def build_map(
