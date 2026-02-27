@@ -503,7 +503,7 @@ with tab_map:
                 mode="text",
                 text=label_text,
                 textfont=dict(
-                    size=9,
+                    size=12,
                     color="white"
                 ),
                 hoverinfo="skip",
@@ -519,7 +519,7 @@ with tab_map:
                 mode="text",
                 text=label_text,
                 textfont=dict(
-                    size=8,
+                    size=11,
                     color="#111827"
                 ),
                 hoverinfo="skip",
