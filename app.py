@@ -231,37 +231,25 @@ st.markdown(
 )
 
 # --------------------------------------------------
-# Global Controls (affects tabs)
+# Selected City State (single source of truth)
 # --------------------------------------------------
-col_search, col_meta = st.columns([3, 1])
+if "selected_city" not in st.session_state:
+    st.session_state["selected_city"] = gateway_city_options[0]
 
-with col_search:
-    st.markdown("**Explore Gateway Cities**  \nSelect up to 3 Gateway Cities for side-by-side comparisons.")
-    available_options = sorted(set(gateway_city_options + st.session_state.get("selected_cities", [])))
+primary_city = st.session_state["selected_city"]
+primary_fips = str(
+    cities_all.loc[cities_all["place_name"] == primary_city, "place_fips"].iloc[0]
+)
 
-    selected_cities = st.multiselect(
-        "Compare Municipalities (Max 3)",
-        options=available_options,
-        default=st.session_state.get("selected_cities", [gateway_city_options[0]]),
-        max_selections=3,
-        key="selected_cities",
-    )
-    if not selected_cities:
-        selected_cities = [gateway_city_options[0]]
-
-with col_meta:
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown(f"<span class='pill'>Latest year: <b>{latest_year}</b></span>", unsafe_allow_html=True)
-    st.caption("Tip: click a Gateway City on the map to add it to your comparison set.")
-
-# Resolve fips for selected
-selected_fips = {
-    city: str(cities_all.loc[cities_all["place_name"] == city, "place_fips"].iloc[0])
-    for city in selected_cities
-}
-primary_city = selected_cities[0]
-primary_fips = selected_fips[primary_city]
-st.session_state.selected_city = primary_city
+# Minimal metadata strip (cleaner than old top panel)
+st.markdown(
+    f"""
+    <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+        <span class='pill'>Latest year: <b>{latest_year}</b></span>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 # --------------------------------------------------
 # Tabs
@@ -271,14 +259,14 @@ tab_map, tab_story, tab_compare, tab_origins = st.tabs(
 )
 
 # ==================================================
-# TAB 1: MAP (kept)
+# TAB 1: MAP
 # ==================================================
 with tab_map:
     with st.container():
         st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
         st.markdown("### Geographic Context")
 
-        # Build town -> fips map from registry names
+        # Build town -> fips map
         town_fips_map = {
             normalize(clean_place_label(name)): fips
             for name, fips in zip(cities_all["place_name"], cities_all["place_fips"])
@@ -307,6 +295,7 @@ with tab_map:
             c_lon: float,
             boston_cambridge_names: set,
         ) -> go.Figure:
+
             z_values = []
             selected_index = None
 
@@ -345,8 +334,6 @@ with tab_map:
                 marker_line_color="rgba(60,65,75,0.5)",
                 hovertemplate="<b>%{location}</b><extra></extra>",
                 selectedpoints=[selected_index] if selected_index is not None else None,
-                selected=dict(marker=dict(opacity=1)),
-                unselected=dict(marker=dict(opacity=0.85)),
             )
 
             fig = go.Figure(trace)
@@ -356,6 +343,7 @@ with tab_map:
                 margin=dict(l=0, r=0, t=0, b=0),
                 height=825,
             )
+
             return fig
 
         fig_map = build_map(
@@ -369,7 +357,12 @@ with tab_map:
             boston_cambridge_names,
         )
 
-        map_event = st.plotly_chart(fig_map, use_container_width=True, on_select="rerun", key="map_select")
+        map_event = st.plotly_chart(
+            fig_map,
+            use_container_width=True,
+            on_select="rerun",
+            key="map_select",
+        )
 
         st.markdown(
             f"""
@@ -383,51 +376,53 @@ with tab_map:
             unsafe_allow_html=True,
         )
 
-        # click-to-add: gateway cities only
+        # --------------------------------------------------
+        # Click-to-select (no more multi-add logic)
+        # --------------------------------------------------
         if map_event and "selection" in map_event and map_event["selection"]["points"]:
             clicked_town = map_event["selection"]["points"][0]["location"]
             town_norm = normalize(clicked_town)
 
             if town_norm in town_fips_map:
                 new_fips = town_fips_map[town_norm]
-                if new_fips in gateway_fips:
-                    new_city = cities_all[cities_all["place_fips"] == new_fips]["place_name"].iloc[0]
-                    if new_city not in st.session_state["selected_cities"]:
-                        if len(st.session_state["selected_cities"]) < 3:
-                            st.session_state["selected_cities"].append(new_city)
-                        else:
-                            st.session_state["selected_cities"] = [st.session_state["selected_cities"][0], new_city]
-                        st.rerun()
 
-        # KPI narrative using gateway_metrics (no raw ACS pulling)
+                if new_fips in gateway_fips:
+                    new_city = cities_all[
+                        cities_all["place_fips"] == new_fips
+                    ]["place_name"].iloc[0]
+
+                    st.session_state["selected_city"] = new_city
+                    st.rerun()
+
+        # --------------------------------------------------
+        # KPI Narrative
+        # --------------------------------------------------
         fb_tr = get_gateway_metric_trend(primary_fips, "foreign_born_share")
+
         if fb_tr is not None and not fb_tr.empty and len(fb_tr) >= 2:
             fb_tr = fb_tr.copy()
             fb_tr["year"] = pd.to_numeric(fb_tr["year"], errors="coerce")
             fb_tr = fb_tr.dropna(subset=["year"]).sort_values("year")
+
             latest_val = float(fb_tr["value"].iloc[-1])
             start_val = float(fb_tr["value"].iloc[0])
-            growth = ((latest_val - start_val) / start_val) * 100 if start_val != 0 else 0
 
             col_kpi, col_lede = st.columns([1, 2.5])
+
             with col_kpi:
                 st.metric("Foreign-Born Share", f"{latest_val:.1f}%")
                 st.metric("Period Change", f"{latest_val - start_val:+.1f} pts")
+
             with col_lede:
-                trend_word = "surged" if growth > 10 else "grown" if growth > 0 else "declined"
                 st.markdown(
-                    textwrap.dedent(
-                        f"""
-                        <div style="font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; font-size:1.05rem; line-height: 1.65; color: #333; padding: 6px 0;">
-                        Over the observed period, the foreign-born share in <b>{primary_city}</b> has {trend_word},
-                        now at <b>{latest_val:.1f}%</b>.
-                        </div>
-                        """
-                    ),
+                    f"""
+                    Over the observed period, the foreign-born share in 
+                    <b>{primary_city}</b> is now <b>{latest_val:.1f}%</b>.
+                    """,
                     unsafe_allow_html=True,
                 )
         else:
-            st.info("Foreign-born share time series not available for the selected municipality.")
+            st.info("Foreign-born share time series not available.")
 
 
 # ==================================================
@@ -591,106 +586,161 @@ with tab_compare:
         st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
         st.markdown("### Compare Metrics")
 
+        # --------------------------------------------
+        # Local multi-city selector (independent)
+        # --------------------------------------------
+        compare_cities = st.multiselect(
+            "Select Gateway Cities (Max 3)",
+            options=gateway_city_options,
+            default=[primary_city],
+            max_selections=3,
+        )
+
+        if not compare_cities:
+            compare_cities = [primary_city]
+
+        selected_fips = {
+            city: str(
+                cities_all.loc[
+                    cities_all["place_name"] == city,
+                    "place_fips"
+                ].iloc[0]
+            )
+            for city in compare_cities
+        }
+
         if not catalog:
             st.info("Metric catalog is empty. Verify public.metric_catalog.")
-        else:
-            metric_keys = sorted(list(catalog.keys()))
-            metric_labels = {k: catalog[k].get("metric_label", k) for k in metric_keys}
+            st.stop()
 
-            col_a, col_b = st.columns([1.2, 2.3])
+        metric_keys = sorted(list(catalog.keys()))
+        metric_labels = {k: catalog[k].get("metric_label", k) for k in metric_keys}
 
-            with col_a:
-                metric_to_compare = st.selectbox(
-                    "Trend metric",
-                    metric_keys,
-                    index=metric_keys.index("median_income") if "median_income" in metric_keys else 0,
-                    format_func=lambda k: metric_labels.get(k, k),
-                )
-                year_for_scatter = st.selectbox(
-                    "Scatter year",
-                    sorted(catalog_df.get("year", pd.Series([latest_year])).unique().tolist())
-                    if "year" in catalog_df.columns else [latest_year],
-                    index=0,
-                )
+        col_a, col_b = st.columns([1.2, 2.3])
 
-            with col_b:
-                st.markdown("**Multi-city trend** (selected cities)")
-                fig = go.Figure()
-                for city_name, fips in selected_fips.items():
-                    tr = get_gateway_metric_trend(fips, metric_to_compare)
-                    if tr is None or tr.empty:
-                        continue
-                    fig.add_trace(go.Scatter(x=tr["year"], y=tr["value"], mode="lines", name=city_name))
-                fig.update_layout(
-                    template="plotly_white",
-                    height=450,
-                    xaxis_title="Year",
-                    yaxis_title=catalog.get(metric_to_compare, {}).get("unit", ""),
-                    legend=dict(title=""),
-                )
-                st.plotly_chart(fig, use_container_width=True)
+        # --------------------------------------------
+        # Trend selector
+        # --------------------------------------------
+        with col_a:
+            metric_to_compare = st.selectbox(
+                "Trend metric",
+                metric_keys,
+                index=metric_keys.index("median_income")
+                if "median_income" in metric_keys else 0,
+                format_func=lambda k: metric_labels.get(k, k),
+            )
 
-        st.divider()
+        # --------------------------------------------
+        # Multi-city trend
+        # --------------------------------------------
+        with col_b:
+            st.markdown("**Multi-city trend**")
 
-        st.markdown("### Cross-metric scatter (Gateway Cities)")
-        if catalog:
-            c1, c2, c3 = st.columns([1.2, 1.2, 1.2])
-            with c1:
-                metric_x = st.selectbox(
-                    "X metric",
-                    metric_keys,
-                    index=metric_keys.index("rent_burden_30_plus") if "rent_burden_30_plus" in metric_keys else 0,
-                    format_func=lambda k: metric_labels.get(k, k),
-                    key="scatter_x",
-                )
-            with c2:
-                metric_y = st.selectbox(
-                    "Y metric",
-                    metric_keys,
-                    index=metric_keys.index("poverty_rate") if "poverty_rate" in metric_keys else min(1, len(metric_keys) - 1),
-                    format_func=lambda k: metric_labels.get(k, k),
-                    key="scatter_y",
-                )
-            with c3:
-                sc_year = st.selectbox(
-                    "Year",
-                    [latest_year],
-                    index=0,
-                    key="scatter_year",
-                )
+            fig = go.Figure()
 
-            sc = get_gateway_scatter(metric_x, metric_y, sc_year)
-            if sc is None or sc.empty:
-                st.info("No data available for that scatter combination.")
-            else:
-                sc = sc.copy()
-                sc["is_in_selection"] = sc["place_fips"].astype(str).isin(set(selected_fips.values()))
-                xl = catalog.get(metric_x, {"metric_label": metric_x}).get("metric_label", metric_x)
-                yl = catalog.get(metric_y, {"metric_label": metric_y}).get("metric_label", metric_y)
+            for city_name, fips in selected_fips.items():
+                tr = get_gateway_metric_trend(fips, metric_to_compare)
+                if tr is None or tr.empty:
+                    continue
 
-                fig_sc = px.scatter(
-                    sc,
-                    x="x",
-                    y="y",
-                    hover_name="place_name",
-                    title=f"{sc_year}: {xl} (x) vs {yl} (y)",
-                )
-                # highlight selected cities
-                sel = sc[sc["is_in_selection"]]
-                if not sel.empty:
-                    fig_sc.add_trace(
-                        go.Scatter(
-                            x=sel["x"],
-                            y=sel["y"],
-                            mode="markers+text",
-                            text=sel["place_name"].apply(lambda s: s.split(",")[0]),
-                            textposition="top center",
-                            name="Selected cities",
-                            marker=dict(size=14, symbol="diamond"),
-                        )
+                fig.add_trace(
+                    go.Scatter(
+                        x=tr["year"],
+                        y=tr["value"],
+                        mode="lines",
+                        name=city_name,
                     )
-                fig_sc.update_layout(template="plotly_white", height=560)
-                st.plotly_chart(fig_sc, use_container_width=True)
+                )
+
+            fig.update_layout(
+                template="plotly_white",
+                height=450,
+                xaxis_title="Year",
+                yaxis_title=catalog.get(metric_to_compare, {}).get("unit", ""),
+                legend=dict(title=""),
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
+
+        # ==================================================
+        # Cross-metric scatter
+        # ==================================================
+        st.divider()
+        st.markdown("### Cross-metric scatter (Gateway Cities)")
+
+        c1, c2, c3 = st.columns([1.2, 1.2, 1.2])
+
+        with c1:
+            metric_x = st.selectbox(
+                "X metric",
+                metric_keys,
+                index=metric_keys.index("rent_burden_30_plus")
+                if "rent_burden_30_plus" in metric_keys else 0,
+                format_func=lambda k: metric_labels.get(k, k),
+                key="scatter_x",
+            )
+
+        with c2:
+            metric_y = st.selectbox(
+                "Y metric",
+                metric_keys,
+                index=metric_keys.index("poverty_rate")
+                if "poverty_rate" in metric_keys else min(1, len(metric_keys) - 1),
+                format_func=lambda k: metric_labels.get(k, k),
+                key="scatter_y",
+            )
+
+        with c3:
+            sc_year = st.selectbox(
+                "Year",
+                [latest_year],
+                index=0,
+                key="scatter_year",
+            )
+
+        sc = get_gateway_scatter(metric_x, metric_y, sc_year)
+
+        if sc is None or sc.empty:
+            st.info("No data available for that scatter combination.")
+        else:
+            sc = sc.copy()
+            sc["is_selected"] = sc["place_fips"].astype(str).isin(
+                set(selected_fips.values())
+            )
+
+            xl = catalog.get(metric_x, {"metric_label": metric_x}).get("metric_label", metric_x)
+            yl = catalog.get(metric_y, {"metric_label": metric_y}).get("metric_label", metric_y)
+
+            fig_sc = px.scatter(
+                sc,
+                x="x",
+                y="y",
+                hover_name="place_name",
+                title=f"{sc_year}: {xl} (x) vs {yl} (y)",
+            )
+
+            # Highlight selected cities
+            sel = sc[sc["is_selected"]]
+
+            if not sel.empty:
+                fig_sc.add_trace(
+                    go.Scatter(
+                        x=sel["x"],
+                        y=sel["y"],
+                        mode="markers+text",
+                        text=sel["place_name"].apply(lambda s: s.split(",")[0]),
+                        textposition="top center",
+                        name="Selected cities",
+                        marker=dict(size=14, symbol="diamond"),
+                    )
+                )
+
+            fig_sc.update_layout(
+                template="plotly_white",
+                height=560,
+            )
+
+            st.plotly_chart(fig_sc, use_container_width=True)
 
 
 # ==================================================
