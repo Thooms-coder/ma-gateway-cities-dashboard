@@ -588,7 +588,7 @@ with tab_map:
         # --------------------------------------------------
         # 1️⃣ Snapshot Grid
         # --------------------------------------------------
-        st.markdown("## Snapshot {selected_year}")
+        st.markdown(f"## Snapshot {selected_year}")
 
         CORE_METRICS = [
             "total_population",
@@ -672,12 +672,17 @@ with tab_map:
             st.info("No trend data available.")
 
         # --------------------------------------------------
-        # 3️⃣ Gateway Ranking Panel
+        # 3️⃣ Gateway Ranking Panel (dynamic)
         # --------------------------------------------------
         st.divider()
-        st.markdown("## Gateway Position")
 
-        rank_df = get_gateway_ranking("poverty_rate", selected_year)
+        rank_meta = catalog.get(trend_metric, {"metric_label": trend_metric})
+
+        st.markdown(
+            f"## Gateway Position — {rank_meta.get('metric_label')} ({selected_year})"
+        )
+
+        rank_df = get_gateway_ranking(trend_metric, selected_year)
 
         if rank_df is not None and not rank_df.empty:
 
@@ -693,7 +698,7 @@ with tab_map:
                 col1, col2 = st.columns(2)
 
                 col1.metric(
-                    "Poverty Rank (Gateway)",
+                    "Gateway Rank",
                     f"{r} / {total}"
                 )
 
@@ -703,6 +708,8 @@ with tab_map:
                     "Relative Position",
                     f"{percentile}th percentile"
                 )
+        else:
+            st.info("No ranking data available.")
 
 
 # ==================================================
