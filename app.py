@@ -415,7 +415,7 @@ with tab_map:
             fig = go.Figure(trace)
             fig.update_layout(
                 clickmode="event+select",
-                mapbox=dict(style="white-bg", center=dict(lat=c_lat, lon=c_lon), zoom=9),
+                mapbox=dict(style="white-bg", center=dict(lat=c_lat, lon=c_lon), zoom=8),
                 margin=dict(l=0, r=0, t=0, b=0),
                 height=825,
             )
