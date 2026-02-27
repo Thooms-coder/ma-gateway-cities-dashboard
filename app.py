@@ -412,10 +412,10 @@ with tab_map:
             # CLEAN EDGE-STACKED GATEWAY CALLOUTS
             # ---------------------------------------
 
-            LEFT_X = min_lon - 0.01
-            RIGHT_X = max_lon + 0.01
+            LEFT_X = min_lon - 0
+            RIGHT_X = max_lon + 0
 
-            spacing = 0.12
+            spacing = 0.05
 
             west_group = []
             east_group = []
