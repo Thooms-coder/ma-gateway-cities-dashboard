@@ -293,26 +293,26 @@ with tab_map:
         st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
         st.markdown("### Geographic Context")
 
-        # Build town -> fips map
-        def normalize_name(name: str) -> str:
+        def normalize_to_geo(name: str) -> str:
             s = str(name)
 
-            # Remove state suffix
+            # Remove state
             s = s.replace(", Massachusetts", "")
 
-            # Standardize whitespace
+            # Remove trailing " city" or " town" ONLY if at end
+            s = re.sub(r"\s+(city|town|cdp)$", "", s, flags=re.IGNORECASE)
+
+            # Clean whitespace
             s = re.sub(r"\s+", " ", s)
 
             return s.strip().upper()
 
-
         town_fips_map = {
-            normalize_name(name): fips
+            normalize_to_geo(name): fips
             for name, fips in zip(cities_all["place_name"], cities_all["place_fips"])
         }
-
         allowed_gateway_names = set(
-            normalize_name(n)
+            normalize_to_geo(n)
             for n in cities_all[
                 cities_all["place_fips"].isin(gateway_fips)
             ]["place_name"]
@@ -365,7 +365,7 @@ with tab_map:
             selected_index = None
 
             for i, town_name in enumerate(locations):
-                town_norm = normalize_name(town_name)
+                town_norm = normalize_to_geo(town_name)
 
                 if town_norm in town_fips_map_local and town_fips_map_local[town_norm] == selected_fips:
                     z_values.append(3)
