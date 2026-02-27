@@ -652,6 +652,7 @@ with tab_map:
         # --------------------------------------------------
         # 3️⃣ Gateway Ranking Panel
         # --------------------------------------------------
+        st.divider()
         st.markdown("## Gateway Position")
 
         rank_df = get_gateway_ranking("poverty_rate", latest_year)
