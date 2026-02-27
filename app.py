@@ -409,13 +409,17 @@ with tab_map:
                     if new_fips in gateway_fips:
                         new_city = cities_all[cities_all["place_fips"] == new_fips]["place_name"].iloc[0]
                         cur = st.session_state.get("selected_cities", [])
+
                         if new_city not in cur:
                             if len(cur) < 3:
-                                st.session_state["selected_cities"] = cur + [new_city]
+                                cur.append(new_city)
                             else:
-                                st.session_state["selected_cities"] = [cur[0], new_city]
-                            st.rerun()
+                                # keep primary, replace second
+                                cur[:] = [cur[0], new_city]
 
+                            st.session_state["selected_cities"] = cur
+                            st.rerun()
+    
         # KPI narrative using gateway_metrics (no raw ACS pulling)
         fb_tr = get_gateway_metric_trend(primary_fips, "foreign_born_share")
         if fb_tr is not None and not fb_tr.empty and len(fb_tr) >= 2:
