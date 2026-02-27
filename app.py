@@ -457,7 +457,7 @@ with tab_map:
             "CHELSEA": (0, -0.06),
             "FITCHBURG": (0.010, -0.010),
             "REVERE": (0.010, 0.010),
-            "EVERETT": (-0.010, -0.020),
+            "EVERETT": (-0.005, -0.020),
         }
 
         for town_name in locations:
