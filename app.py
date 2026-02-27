@@ -659,9 +659,10 @@ with tab_map:
 
         if rank_df is not None and not rank_df.empty:
             city_rank = rank_df[rank_df["place_fips"].astype(str) == primary_fips]
-
+            
+            st.write(rank_df.columns)
+            
             if not city_rank.empty:
-                st.write(rank_df.columns)
                 r = int(city_rank["rank"].iloc[0])
                 total = len(rank_df)
 
