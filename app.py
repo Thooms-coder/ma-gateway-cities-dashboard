@@ -412,8 +412,8 @@ with tab_map:
             # CLEAN EDGE-STACKED GATEWAY CALLOUTS
             # ---------------------------------------
 
-            LEFT_X = min_lon - 0.6
-            RIGHT_X = max_lon + 0.6
+            LEFT_X = min_lon - 0.2
+            RIGHT_X = max_lon + 0.2
 
             spacing = 0.12
 
