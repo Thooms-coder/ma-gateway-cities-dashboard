@@ -447,6 +447,16 @@ with tab_map:
         label_sizes = []
         label_colors = []
 
+        # --------------------------------------------------
+        # Manual label offsets (lat, lon)
+        # --------------------------------------------------
+        LABEL_OFFSETS = {
+            "LEOMINSTER": (0.015, -0.015),
+            "METHUEN": (0.012, 0.012),
+            "MALDEN": (0.010, -0.010),
+            "CHELSEA": (-0.012, 0.010),
+        }
+
         for town_name in locations:
             town_key = normalize_geo_key(town_name)  # ✅ use same normalization
 
@@ -462,6 +472,11 @@ with tab_map:
                     continue
 
                 lat, lon = town_centroids[town_key]
+
+                # Apply manual offset if defined
+                offset_lat, offset_lon = LABEL_OFFSETS.get(town_key, (0, 0))
+                lat += offset_lat
+                lon += offset_lon
 
                 label_lats.append(lat)
                 label_lons.append(lon)
