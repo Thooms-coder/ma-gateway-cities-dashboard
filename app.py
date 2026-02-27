@@ -408,8 +408,6 @@ with tab_map:
                     [0.75, COLOR_TARGET],
                     [1.0, COLOR_TARGET],
                 ],
-                zmin=0,
-                zmax=3,
                 showscale=False,
                 marker_line_width=1.0,
                 marker_line_color="rgba(60,65,75,0.5)",
