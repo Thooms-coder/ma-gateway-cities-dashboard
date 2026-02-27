@@ -412,8 +412,7 @@ with tab_map:
             # CLEAN EDGE-STACKED GATEWAY CALLOUTS
             # ---------------------------------------
 
-            LEFT_X = min_lon - 0
-            RIGHT_X = max_lon + 0
+            HORIZONTAL_OFFSET = 0.35
 
             spacing = 0.05
 
@@ -447,7 +446,10 @@ with tab_map:
                 for i, (name, lat, lon) in enumerate(group):
 
                     label_lat = lat + (i * spacing)
-                    label_lon = LEFT_X if side == "west" else RIGHT_X
+                    if side == "west":
+                        label_lon = lon - HORIZONTAL_OFFSET
+                    else:
+                        label_lon = lon + HORIZONTAL_OFFSET
 
                     dot_lats.append(lat)
                     dot_lons.append(lon)
