@@ -214,11 +214,6 @@ catalog: Dict[str, Dict] = (
     catalog_df.set_index("metric_key").to_dict(orient="index") if not catalog_df.empty else {}
 )
 
-latest_year = get_latest_year_available()
-if not latest_year:
-    st.error("No data found in public.gateway_metrics. Verify your ETL/materialized view refresh.")
-    st.stop()
-
 available_years = get_available_gateway_years()
 if not available_years:
     st.error("No years available in gateway_metrics.")
@@ -581,6 +576,23 @@ with tab_map:
         st.markdown(f"# {primary_city.split(',')[0]} — City Profile")
 
         # --------------------------------------------------
+        # Available Years (Gateway Metrics)
+        # --------------------------------------------------
+
+        available_years = get_available_gateway_years()
+
+        if not available_years:
+            st.error("No data found in public.gateway_metrics.")
+            st.stop()
+
+        latest_year = max(available_years)
+
+        if "selected_year" not in st.session_state:
+            st.session_state["selected_year"] = latest_year
+
+        selected_year = st.session_state["selected_year"]
+
+        # --------------------------------------------------
         # 1️⃣ Snapshot Grid
         # --------------------------------------------------
         st.markdown("## Snapshot (Latest Year)")
@@ -788,9 +800,9 @@ with tab_story:
 
         # Ranking table for latest year
         st.markdown(
-            f"**Gateway ranking ({latest_year}):** {meta.get('metric_label', lead_metric)}"
+            f"**Gateway ranking ({selected_year}):** {meta.get('metric_label', lead_metric)}"
         )
-        rank_df = get_gateway_ranking(lead_metric, latest_year)
+        rank_df = get_gateway_ranking(lead_metric, selected_year)
         st.dataframe(rank_df, use_container_width=True, hide_index=True)
 
         # Investigative mode
@@ -811,7 +823,7 @@ with tab_story:
                 idx = st.selectbox("Choose a comparison", range(len(pairs)), format_func=lambda i: pair_labels[i])
                 xk, yk = pairs[idx]
 
-                sc = get_gateway_scatter(xk, yk, latest_year)
+                sc = get_gateway_scatter(xk, yk, selected_year)
                 xl = catalog.get(xk, {"metric_label": xk}).get("metric_label", xk)
                 yl = catalog.get(yk, {"metric_label": yk}).get("metric_label", yk)
 
@@ -826,7 +838,7 @@ with tab_story:
                         x="x",
                         y="y",
                         hover_name="place_name",
-                        title=f"{latest_year}: {xl} (x) vs {yl} (y)",
+                        title=f"{selected_year}: {xl} (x) vs {yl} (y)",
                     )
                     # highlight selected city
                     fig_sc.update_traces(
@@ -1095,7 +1107,7 @@ with tab_origins:
         origins_fips = str(cities_df.loc[cities_df["place_name"] == origins_city, "place_fips"].iloc[0])
 
         # Use latest year from gateway_metrics as default
-        year = st.selectbox("Year", [latest_year], index=0, key="origins_year")
+        year = st.selectbox("Year", available_years, index=available_years.index(selected_year), key="origins_year")
 
         try:
             df_b05006 = get_place_source_table_year(origins_fips, SOURCE_BIRTH_TABLE, int(year))
