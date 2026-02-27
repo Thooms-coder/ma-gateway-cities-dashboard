@@ -139,6 +139,9 @@ def load_ma_map() -> dict:
 
 ma_geo = load_ma_map()
 
+st.write("GeoJSON property keys sample:",
+         ma_geo["features"][0]["properties"].keys())
+st.stop()
 
 def normalize(name: str) -> str:
     return str(name).strip().upper()
