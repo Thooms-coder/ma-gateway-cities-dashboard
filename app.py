@@ -467,22 +467,39 @@ with tab_map:
                     label_sizes.append(11)
                     label_colors.append("#111827")
 
+        # Marker layer for ALL gateway cities
         fig_map.add_trace(
             go.Scattermapbox(
                 lat=label_lats,
                 lon=label_lons,
-                mode="text",
+                mode="markers",
+                marker=dict(size=6, color="#111827"),
                 text=label_text,
-                textfont=dict(
-                    size=11,
-                    color="#111827"
-                ),
-                textposition="middle center",
-                hoverinfo="skip",
+                hovertemplate="<b>%{text}</b><extra></extra>",
                 showlegend=False,
-                below=""  # <-- critical: draw above choropleth
             )
         )
+
+        # Separate label for SELECTED city only
+        if primary_fips in cities_all["place_fips"].values:
+            sel_row = cities_all[cities_all["place_fips"] == primary_fips].iloc[0]
+            sel_key = normalize_geo_key(clean_place_label(sel_row["place_name"]))
+
+            if sel_key in town_centroids:
+                lat, lon = town_centroids[sel_key]
+                abbr = GATEWAY_ABBREVIATIONS.get(sel_row["place_name"])
+
+                fig_map.add_trace(
+                    go.Scattermapbox(
+                        lat=[lat],
+                        lon=[lon],
+                        mode="text",
+                        text=[abbr],
+                        textfont=dict(size=16, color=COLOR_TARGET),
+                        hoverinfo="skip",
+                        showlegend=False,
+                    )
+                )
 
         map_event = st.plotly_chart(
             fig_map,
