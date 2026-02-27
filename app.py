@@ -446,7 +446,7 @@ with tab_map:
 
                 for i, (name, lat, lon) in enumerate(group):
 
-                    label_lat = max_lat - i * spacing
+                    label_lat = lat + (i * spacing)
                     label_lon = LEFT_X if side == "west" else RIGHT_X
 
                     dot_lats.append(lat)
