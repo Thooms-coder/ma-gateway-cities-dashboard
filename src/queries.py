@@ -554,45 +554,97 @@ def get_distribution_for_variable(
 # ============================================================
 # Convenience: "classic" metrics using variable_ids
 # ============================================================
-# These are OPTIONAL helper wrappers to keep your old app code readable.
-# You can extend this dict with any IDs you use in the UI.
+# These map legacy ACS variable_ids to readable metric keys.
+# Only include variables that are safe for journalist use.
 
 DEFAULT_VARIABLES: Dict[str, str] = {
+
+    # =========================
     # Population
-    "total_population": "B01003_001E",        # if you used B01003 long-format
-    # S0101 also has total pop: S0101_C01_001E
+    # =========================
+    "total_population": "B01003_001E",
     "total_population_profile": "S0101_C01_001E",
 
-    # Income (S1901)
-    "median_household_income": "S1901_C01_012E",  # common ACS profile id for median household income
-    # Poverty (S1701): you must set the exact id you want in your UI (rate vs count)
-    # Example placeholder:
+    # =========================
+    # Income & Poverty
+    # =========================
+    "median_household_income": "S1901_C01_012E",
     "poverty_rate": "S1701_C03_001E",
+    "child_poverty_rate": "S1701_C03_002E",
 
-    # Gini (B19083)
+    # =========================
+    # Inequality
+    # =========================
     "gini_index": "B19083_001E",
+
+    # =========================
+    # Labor Market
+    # =========================
+    "unemployment_rate": "B23025_005E",   # used in combination with labor force
+    "labor_force_total": "B23025_003E",
+
+    # =========================
+    # Housing
+    # =========================
+    "median_home_value": "B25077_001E",
+    "rent_burden_base": "B25070_001E",   # used for derived burden calculations
+    "percent_renters": "B25003_002E",
+    "vacant_units": "B25002_003E",
+
+    # =========================
+    # EDUCATION (S1501)
+    # =========================
+    # Percent high school graduate or higher (25+)
+    "hs_or_higher_pct": "S1501_C01_014E",
+
+    # Percent bachelor's degree or higher (25+)
+    "ba_or_higher_pct": "S1501_C01_015E",
+
+    # Median earnings (25+ with earnings)
+    "median_earnings_25plus": "S1501_C01_059E",
 }
 
 def get_metric_trend(place_fips: str, metric_key: str) -> pd.DataFrame:
     """
     Wrapper: metric_key must exist in DEFAULT_VARIABLES.
+    Returns ACS-based trend (raw warehouse).
     """
     if metric_key not in DEFAULT_VARIABLES:
-        raise KeyError(f"Unknown metric_key '{metric_key}'. Add it to DEFAULT_VARIABLES.")
+        raise KeyError(
+            f"Unknown metric_key '{metric_key}'. "
+            "Add it to DEFAULT_VARIABLES or use Gateway metric functions."
+        )
     return get_place_variable_trend(place_fips, DEFAULT_VARIABLES[metric_key])
 
 
-def get_metric_vs_state(place_fips: str, metric_key: str, state_fips: str = "25") -> pd.DataFrame:
+def get_metric_vs_state(
+    place_fips: str,
+    metric_key: str,
+    state_fips: str = "25"
+) -> pd.DataFrame:
+    """
+    Returns place vs state comparison for raw ACS variables.
+    """
     if metric_key not in DEFAULT_VARIABLES:
-        raise KeyError(f"Unknown metric_key '{metric_key}'. Add it to DEFAULT_VARIABLES.")
-    return get_place_vs_state_trend(place_fips, DEFAULT_VARIABLES[metric_key], state_fips=state_fips)
-
+        raise KeyError(
+            f"Unknown metric_key '{metric_key}'. "
+            "Add it to DEFAULT_VARIABLES or use Gateway metric functions."
+        )
+    return get_place_vs_state_trend(
+        place_fips,
+        DEFAULT_VARIABLES[metric_key],
+        state_fips=state_fips
+    )
 
 # ============================================================
 # Guardrails: Quick sanity checks (optional)
 # ============================================================
 
 def sanity_check_place_key_duplicates(limit: int = 20) -> pd.DataFrame:
+    """
+    Detect duplicate (place_fips, year, variable_id) rows.
+    Should always return empty in a clean warehouse.
+    """
     query = f"""
         SELECT place_fips, acs_end_year, variable_id, COUNT(*) AS n
         FROM {ACS_PLACE}
@@ -604,6 +656,9 @@ def sanity_check_place_key_duplicates(limit: int = 20) -> pd.DataFrame:
 
 
 def sanity_check_negative_moe(scope: str = "place") -> pd.DataFrame:
+    """
+    Detect negative margins of error (data corruption indicator).
+    """
     table = ACS_PLACE if scope == "place" else ACS_STATE
     query = f"""
         SELECT COUNT(*) AS negative_moe_rows
@@ -611,3 +666,102 @@ def sanity_check_negative_moe(scope: str = "place") -> pd.DataFrame:
         WHERE moe < 0;
     """
     return run_query(query)
+
+# ============================================================
+# Journalist Layer: Gateway Metrics + Story Angles
+# ============================================================
+
+GATEWAY_METRICS = "public.gateway_metrics"
+STATE_METRICS = "public.state_metrics_yearly"
+METRIC_CATALOG = "public.metric_catalog"
+
+
+def get_metric_catalog() -> pd.DataFrame:
+    return run_query(f"""
+        SELECT metric_key, metric_label, theme, unit, description, format_hint
+        FROM {METRIC_CATALOG}
+        ORDER BY theme, metric_label;
+    """)
+
+
+def get_latest_year_available() -> int:
+    df = run_query(f"SELECT MAX(year) AS y FROM {GATEWAY_METRICS};")
+    if df.empty or pd.isna(df["y"].iloc[0]):
+        return 0
+    return int(df["y"].iloc[0])
+
+
+def get_gateway_metric_trend(place_fips: str, metric_key: str) -> pd.DataFrame:
+    return run_query(f"""
+        SELECT year,
+               metric_value AS value,
+               delta_5yr,
+               delta_10yr,
+               rank_within_gateway,
+               rank_change_5yr
+        FROM {GATEWAY_METRICS}
+        WHERE place_fips::text = :place_fips
+          AND metric_key = :metric_key
+        ORDER BY year;
+    """, {"place_fips": str(place_fips), "metric_key": metric_key})
+
+
+def get_state_metric_trend(metric_key: str) -> pd.DataFrame:
+    return run_query(f"""
+        SELECT year,
+               metric_value AS value
+        FROM {STATE_METRICS}
+        WHERE metric_key = :metric_key
+        ORDER BY year;
+    """, {"metric_key": metric_key})
+
+
+def get_gateway_metric_snapshot(place_fips: str, metric_key: str) -> pd.DataFrame:
+    return run_query(f"""
+        SELECT year,
+               metric_value AS value,
+               delta_5yr,
+               delta_10yr,
+               rank_within_gateway,
+               rank_change_5yr
+        FROM {GATEWAY_METRICS}
+        WHERE place_fips::text = :place_fips
+          AND metric_key = :metric_key
+        ORDER BY year DESC
+        LIMIT 1;
+    """, {"place_fips": str(place_fips), "metric_key": metric_key})
+
+
+def get_gateway_ranking(metric_key: str, year: int) -> pd.DataFrame:
+    return run_query(f"""
+        SELECT place_fips::text,
+               place_name,
+               metric_value AS value,
+               rank_within_gateway
+        FROM {GATEWAY_METRICS}
+        WHERE metric_key = :metric_key
+          AND year = :year
+        ORDER BY value DESC NULLS LAST;
+    """, {"metric_key": metric_key, "year": int(year)})
+
+
+def get_gateway_scatter(metric_x: str, metric_y: str, year: int) -> pd.DataFrame:
+    return run_query(f"""
+        SELECT
+          x.place_fips::text,
+          x.place_name,
+          x.metric_value AS x,
+          y.metric_value AS y
+        FROM {GATEWAY_METRICS} x
+        JOIN {GATEWAY_METRICS} y
+          ON x.place_fips = y.place_fips
+         AND x.year = y.year
+        WHERE x.metric_key = :metric_x
+          AND y.metric_key = :metric_y
+          AND x.year = :year
+        ORDER BY x.metric_value NULLS LAST;
+    """, {
+        "metric_x": metric_x,
+        "metric_y": metric_y,
+        "year": int(year),
+    })
