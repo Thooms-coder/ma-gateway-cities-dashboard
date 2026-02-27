@@ -588,7 +588,7 @@ with tab_map:
         # --------------------------------------------------
         # 1️⃣ Snapshot Grid
         # --------------------------------------------------
-        st.markdown("## Snapshot ({selected_year})")
+        st.markdown("## Snapshot {selected_year}")
 
         CORE_METRICS = [
             "total_population",
