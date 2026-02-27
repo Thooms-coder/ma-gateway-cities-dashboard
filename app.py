@@ -61,7 +61,7 @@ GATEWAY_ABBREVIATIONS = {
 # Design System Colors
 # --------------------------------------------------
 COLOR_TARGET = "#4A86C5"   # softened blue (selected)
-COLOR_BASE = "#E36A5C"     # muted red (gateway)
+COLOR_BASE = "#F28E8E"
 COLOR_BG = "#f4f5f6"
 COLOR_TEXT = "#2c2f33"
 COLOR_BOSTON = "#5FB3A8"   # softened teal (Boston/Cambridge)
