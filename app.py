@@ -140,6 +140,25 @@ def get_town_centroids(geojson: dict) -> Dict[str, Tuple[float, float]]:
 
 town_centroids = get_town_centroids(ma_geo)
 
+import math
+
+def compute_callout_position(lat, lon, center_lat, center_lon, scale=0.6):
+    """
+    Push label outward from center toward map edge.
+    scale controls how far out label is placed.
+    """
+    dlat = lat - center_lat
+    dlon = lon - center_lon
+
+    length = math.sqrt(dlat**2 + dlon**2)
+    if length == 0:
+        return lat, lon
+
+    unit_lat = dlat / length
+    unit_lon = dlon / length
+
+    return lat + unit_lat * scale, lon + unit_lon * scale
+
 def normalize(name: str) -> str:
     return str(name).strip().upper()
 
@@ -388,13 +407,20 @@ with tab_map:
             )
 
             fig = go.Figure(trace)
+
             # ---------------------------------------
-            # Add Gateway City Labels
+            # Gateway City Callouts (Pointer Style)
             # ---------------------------------------
+
+            line_lats = []
+            line_lons = []
 
             label_lats = []
             label_lons = []
             label_text = []
+
+            dot_lats = []
+            dot_lons = []
 
             for town_name in locations:
                 town_norm = normalize(town_name)
@@ -402,25 +428,63 @@ with tab_map:
                 if town_norm in allowed_gateway_names:
                     if town_name in town_centroids:
                         lat, lon = town_centroids[town_name]
-                        label_lats.append(lat)
-                        label_lons.append(lon)
+
+                        # compute outward label position
+                        label_lat, label_lon = compute_callout_position(
+                            lat, lon, c_lat, c_lon, scale=0.8
+                        )
+
+                        # anchor dot
+                        dot_lats.append(lat)
+                        dot_lons.append(lon)
+
+                        # pointer line (two-point segment)
+                        line_lats.extend([lat, label_lat, None])
+                        line_lons.extend([lon, label_lon, None])
+
+                        # label
+                        label_lats.append(label_lat)
+                        label_lons.append(label_lon)
                         label_text.append(town_name)
 
+            # Anchor dots
+            fig.add_trace(
+                go.Scattermapbox(
+                    lat=dot_lats,
+                    lon=dot_lons,
+                    mode="markers",
+                    marker=dict(size=6, color="#111827"),
+                    hoverinfo="skip",
+                    showlegend=False,
+                )
+            )
+
+            # Pointer lines
+            fig.add_trace(
+                go.Scattermapbox(
+                    lat=line_lats,
+                    lon=line_lons,
+                    mode="lines",
+                    line=dict(width=1.2, color="#374151"),
+                    hoverinfo="skip",
+                    showlegend=False,
+                )
+            )
+
+            # Labels
             fig.add_trace(
                 go.Scattermapbox(
                     lat=label_lats,
                     lon=label_lons,
                     mode="text",
                     text=label_text,
-                    textfont=dict(
-                        size=11,
-                        color="#1f2937",
-                    ),
+                    textfont=dict(size=11, color="#111827"),
                     textposition="middle center",
                     hoverinfo="skip",
                     showlegend=False,
                 )
             )
+
             fig.update_layout(
                 clickmode="event+select",
                 mapbox=dict(style="white-bg", center=dict(lat=c_lat, lon=c_lon), zoom=8),
