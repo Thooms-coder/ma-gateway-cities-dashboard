@@ -139,12 +139,19 @@ def load_ma_map() -> dict:
 
 ma_geo = load_ma_map()
 
-st.write("GeoJSON property keys sample:",
-         ma_geo["features"][0]["properties"].keys())
-st.stop()
+def normalize_geo_key(name: str) -> str:
+    s = str(name)
 
-def normalize(name: str) -> str:
-    return str(name).strip().upper()
+    # remove state
+    s = s.replace(", Massachusetts", "")
+
+    # remove city/town anywhere
+    s = re.sub(r"\b(city|town|cdp)\b", "", s, flags=re.IGNORECASE)
+
+    # collapse whitespace
+    s = re.sub(r"\s+", " ", s)
+
+    return s.strip().upper()
 
 
 def clean_place_label(name: str) -> str:
@@ -296,33 +303,33 @@ with tab_map:
         st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
         st.markdown("### Geographic Context")
 
-        def normalize_to_geo(name: str) -> str:
+        def normalize_geo_key(name: str) -> str:
             s = str(name)
 
-            # Remove state
+            # remove state
             s = s.replace(", Massachusetts", "")
 
-            # Remove trailing " city" or " town" ONLY if at end
-            s = re.sub(r"\s+(city|town|cdp)$", "", s, flags=re.IGNORECASE)
+            # remove city/town anywhere
+            s = re.sub(r"\b(city|town|cdp)\b", "", s, flags=re.IGNORECASE)
 
-            # Clean whitespace
+            # collapse whitespace
             s = re.sub(r"\s+", " ", s)
 
             return s.strip().upper()
 
         town_fips_map = {
-            normalize_to_geo(name): fips
+            normalize_geo_key(name): fips
             for name, fips in zip(cities_all["place_name"], cities_all["place_fips"])
         }
         allowed_gateway_names = set(
-            normalize_to_geo(n)
+            normalize_geo_key(n)
             for n in cities_all[
                 cities_all["place_fips"].isin(gateway_fips)
             ]["place_name"]
         )
 
         boston_cambridge_names = set(
-            normalize(clean_place_label(n))
+            normalize_geo_key(clean_place_label(n))
             for n in extra_cities["place_name"]
         )
 
@@ -333,7 +340,7 @@ with tab_map:
 
         for feature in ma_geo["features"]:
             town_raw = feature["properties"]["TOWN"]
-            town_key = normalize_to_geo(town_raw)  # ✅ normalize here
+            town_key = normalize_geo_key(town_raw)  # ✅ normalize here
             coords = feature["geometry"]["coordinates"]
 
             lats = []
@@ -369,7 +376,7 @@ with tab_map:
             selected_index = None
 
             for i, town_name in enumerate(locations):
-                town_norm = normalize_to_geo(town_name)
+                town_norm = normalize_geo_key(town_name)
 
                 if town_norm in town_fips_map_local and town_fips_map_local[town_norm] == selected_fips:
                     z_values.append(3)
@@ -436,7 +443,7 @@ with tab_map:
         label_colors = []
 
         for town_name in locations:
-            town_key = normalize_to_geo(town_name)  # ✅ use same normalization
+            town_key = normalize_geo_key(town_name)  # ✅ use same normalization
 
             if town_key in allowed_gateway_names and town_key in town_centroids:
                 fips = town_fips_map[town_key]
@@ -505,7 +512,7 @@ with tab_map:
         # --------------------------------------------------
         if map_event and "selection" in map_event and map_event["selection"]["points"]:
             clicked_town = map_event["selection"]["points"][0]["location"]
-            town_key = normalize_to_geo(clicked_town)  # ✅ critical
+            town_key = normalize_geo_key(clicked_town)  # ✅ critical
 
             if town_key in town_fips_map:
                 new_fips = town_fips_map[town_key]
