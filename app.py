@@ -503,7 +503,7 @@ with tab_map:
                 mode="text",
                 text=label_text,
                 textfont=dict(
-                    size=12,
+                    size=14,
                     color="white"
                 ),
                 hoverinfo="skip",
