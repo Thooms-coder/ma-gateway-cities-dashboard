@@ -400,26 +400,31 @@ with tab_map:
         )
 
         # click-to-add: gateway cities only
-        if map_event and isinstance(map_event, dict) and "selection" in map_event and map_event["selection"].get("points"):
-            clicked_town = map_event["selection"]["points"][0].get("location")
-            if clicked_town:
-                town_norm = normalize(clicked_town)
-                if town_norm in town_fips_map:
-                    new_fips = str(town_fips_map[town_norm])
-                    if new_fips in gateway_fips:
-                        new_city = cities_all[cities_all["place_fips"] == new_fips]["place_name"].iloc[0]
-                        cur = st.session_state.get("selected_cities", [])
+        if map_event and isinstance(map_event, dict):
+            sel = map_event.get("selection", {})
+            points = sel.get("points", [])
+            if points:
+                clicked_town = points[0].get("location")
+                if clicked_town:
+                    town_norm = normalize(clicked_town)
 
-                        if new_city not in cur:
-                            if len(cur) < 3:
-                                cur.append(new_city)
-                            else:
-                                # keep primary, replace second
-                                cur[:] = [cur[0], new_city]
+                    if town_norm in town_fips_map:
+                        new_fips = str(town_fips_map[town_norm])
 
-                            st.session_state["selected_cities"] = cur
-                            st.rerun()
-    
+                        if new_fips in gateway_fips:
+                            new_city = cities_all.loc[
+                                cities_all["place_fips"] == new_fips, "place_name"
+                            ].iloc[0]
+
+                            if new_city not in st.session_state.selected_cities:
+                                if len(st.session_state.selected_cities) < 3:
+                                    st.session_state.selected_cities.append(new_city)
+                                else:
+                                    # keep first, replace rest
+                                    st.session_state.selected_cities[1:] = [new_city]
+
+                                st.rerun()
+                        
         # KPI narrative using gateway_metrics (no raw ACS pulling)
         fb_tr = get_gateway_metric_trend(primary_fips, "foreign_born_share")
         if fb_tr is not None and not fb_tr.empty and len(fb_tr) >= 2:
