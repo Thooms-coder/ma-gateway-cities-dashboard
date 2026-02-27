@@ -56,6 +56,20 @@ GATEWAY_ABBREVIATIONS = {
     "Westfield city, Massachusetts": "WES",
 }
 
+def normalize_geo_key(name: str) -> str:
+    s = str(name)
+
+    # remove state
+    s = s.replace(", Massachusetts", "")
+
+    # remove city/town anywhere
+    s = re.sub(r"\b(city|town|cdp)\b", "", s, flags=re.IGNORECASE)
+
+    # collapse whitespace
+    s = re.sub(r"\s+", " ", s)
+
+    return s.strip().upper()
+
 NORMALIZED_ABBR = {
     normalize_geo_key(clean_place_label(k)): v
     for k, v in GATEWAY_ABBREVIATIONS.items()
@@ -143,20 +157,6 @@ def load_ma_map() -> dict:
 
 
 ma_geo = load_ma_map()
-
-def normalize_geo_key(name: str) -> str:
-    s = str(name)
-
-    # remove state
-    s = s.replace(", Massachusetts", "")
-
-    # remove city/town anywhere
-    s = re.sub(r"\b(city|town|cdp)\b", "", s, flags=re.IGNORECASE)
-
-    # collapse whitespace
-    s = re.sub(r"\s+", " ", s)
-
-    return s.strip().upper()
 
 
 def clean_place_label(name: str) -> str:
