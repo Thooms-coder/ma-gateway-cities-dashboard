@@ -455,6 +455,7 @@ with tab_map:
             "METHUEN": (0.015, 0.012),
             "MALDEN": (0.010, -0.010),
             "CHELSEA": (0, -0.06),
+            "FITCHBURG": (0.010, -0.010),
         }
 
         for town_name in locations:
