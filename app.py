@@ -661,6 +661,7 @@ with tab_map:
             city_rank = rank_df[rank_df["place_fips"].astype(str) == primary_fips]
 
             if not city_rank.empty:
+                st.write(rank_df.columns)
                 r = int(city_rank["rank"].iloc[0])
                 total = len(rank_df)
 
