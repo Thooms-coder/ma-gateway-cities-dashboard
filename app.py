@@ -111,6 +111,34 @@ def load_ma_map() -> dict:
 
 ma_geo = load_ma_map()
 
+def get_town_centroids(geojson: dict) -> Dict[str, Tuple[float, float]]:
+    """
+    Returns dict: {TOWN_NAME: (lat, lon)}
+    Uses simple mean of polygon coordinates.
+    """
+    centroids = {}
+
+    for feat in geojson["features"]:
+        town = feat["properties"]["TOWN"]
+        coords = []
+
+        def extract(c):
+            if isinstance(c[0], list):
+                for sub in c:
+                    extract(sub)
+            else:
+                coords.append(c)
+
+        extract(feat["geometry"]["coordinates"])
+
+        if coords:
+            lons = [pt[0] for pt in coords]
+            lats = [pt[1] for pt in coords]
+            centroids[town] = (sum(lats)/len(lats), sum(lons)/len(lons))
+
+    return centroids
+
+town_centroids = get_town_centroids(ma_geo)
 
 def normalize(name: str) -> str:
     return str(name).strip().upper()
@@ -143,7 +171,6 @@ def get_geo_bounds(geojson: dict) -> Tuple[float, float, float, float]:
         extract_coords(feat["geometry"]["coordinates"])
 
     return min(lats), max(lats), min(lons), max(lons)
-
 
 min_lat, max_lat, min_lon, max_lon = get_geo_bounds(ma_geo)
 center_lat, center_lon = (min_lat + max_lat) / 2, (min_lon + max_lon) / 2
@@ -361,6 +388,39 @@ with tab_map:
             )
 
             fig = go.Figure(trace)
+            # ---------------------------------------
+            # Add Gateway City Labels
+            # ---------------------------------------
+
+            label_lats = []
+            label_lons = []
+            label_text = []
+
+            for town_name in locations:
+                town_norm = normalize(town_name)
+
+                if town_norm in allowed_gateway_names:
+                    if town_name in town_centroids:
+                        lat, lon = town_centroids[town_name]
+                        label_lats.append(lat)
+                        label_lons.append(lon)
+                        label_text.append(town_name)
+
+            fig.add_trace(
+                go.Scattermapbox(
+                    lat=label_lats,
+                    lon=label_lons,
+                    mode="text",
+                    text=label_text,
+                    textfont=dict(
+                        size=11,
+                        color="#1f2937",
+                    ),
+                    textposition="middle center",
+                    hoverinfo="skip",
+                    showlegend=False,
+                )
+            )
             fig.update_layout(
                 clickmode="event+select",
                 mapbox=dict(style="white-bg", center=dict(lat=c_lat, lon=c_lon), zoom=8),
