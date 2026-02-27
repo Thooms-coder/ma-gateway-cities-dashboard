@@ -409,81 +409,118 @@ with tab_map:
             fig = go.Figure(trace)
 
             # ---------------------------------------
-            # Gateway City Callouts (Pointer Style)
+            # Gateway City Structured Callouts
             # ---------------------------------------
 
-            line_lats = []
-            line_lons = []
+            import math
 
-            label_lats = []
-            label_lons = []
-            label_text = []
+            # Define edge anchors (relative to map bounds)
+            LEFT_X = min_lon - 0.4
+            RIGHT_X = max_lon + 0.4
+            TOP_Y = max_lat + 0.3
+            BOTTOM_Y = min_lat - 0.3
 
-            dot_lats = []
-            dot_lons = []
+            west_labels = []
+            east_labels = []
+            north_labels = []
+            south_labels = []
 
             for town_name in locations:
                 town_norm = normalize(town_name)
 
-                if town_norm in allowed_gateway_names:
-                    if town_name in town_centroids:
-                        lat, lon = town_centroids[town_name]
+                if town_norm in allowed_gateway_names and town_name in town_centroids:
+                    lat, lon = town_centroids[town_name]
 
-                        # compute outward label position
-                        label_lat, label_lon = compute_callout_position(
-                            lat, lon, c_lat, c_lon, scale=0.8
-                        )
+                    # classify region
+                    if lon < center_lon - 0.3:
+                        west_labels.append((town_name, lat, lon))
+                    elif lon > center_lon + 0.3:
+                        east_labels.append((town_name, lat, lon))
+                    elif lat > center_lat:
+                        north_labels.append((town_name, lat, lon))
+                    else:
+                        south_labels.append((town_name, lat, lon))
 
-                        # anchor dot
-                        dot_lats.append(lat)
-                        dot_lons.append(lon)
 
-                        # pointer line (two-point segment)
-                        line_lats.extend([lat, label_lat, None])
-                        line_lons.extend([lon, label_lon, None])
+            def draw_group(group, side):
+                line_lats = []
+                line_lons = []
+                label_lats = []
+                label_lons = []
+                label_text = []
+                dot_lats = []
+                dot_lons = []
 
-                        # label
-                        label_lats.append(label_lat)
-                        label_lons.append(label_lon)
-                        label_text.append(town_name)
+                spacing = 0.08
 
-            # Anchor dots
-            fig.add_trace(
-                go.Scattermapbox(
-                    lat=dot_lats,
-                    lon=dot_lons,
-                    mode="markers",
-                    marker=dict(size=6, color="#111827"),
-                    hoverinfo="skip",
-                    showlegend=False,
+                for i, (name, lat, lon) in enumerate(sorted(group, key=lambda x: x[1])):
+
+                    if side == "west":
+                        label_lat = max_lat - i * spacing
+                        label_lon = LEFT_X
+                    elif side == "east":
+                        label_lat = max_lat - i * spacing
+                        label_lon = RIGHT_X
+                    elif side == "north":
+                        label_lat = TOP_Y
+                        label_lon = min_lon + i * 0.15
+                    else:  # south
+                        label_lat = BOTTOM_Y
+                        label_lon = min_lon + i * 0.15
+
+                    dot_lats.append(lat)
+                    dot_lons.append(lon)
+
+                    line_lats.extend([lat, label_lat, None])
+                    line_lons.extend([lon, label_lon, None])
+
+                    label_lats.append(label_lat)
+                    label_lons.append(label_lon)
+                    label_text.append(name)
+
+                # anchor dots
+                fig.add_trace(
+                    go.Scattermapbox(
+                        lat=dot_lats,
+                        lon=dot_lons,
+                        mode="markers",
+                        marker=dict(size=6, color="#111827"),
+                        hoverinfo="skip",
+                        showlegend=False,
+                    )
                 )
-            )
 
-            # Pointer lines
-            fig.add_trace(
-                go.Scattermapbox(
-                    lat=line_lats,
-                    lon=line_lons,
-                    mode="lines",
-                    line=dict(width=1.2, color="#374151"),
-                    hoverinfo="skip",
-                    showlegend=False,
+                # pointer lines
+                fig.add_trace(
+                    go.Scattermapbox(
+                        lat=line_lats,
+                        lon=line_lons,
+                        mode="lines",
+                        line=dict(width=1.2, color="#374151"),
+                        hoverinfo="skip",
+                        showlegend=False,
+                    )
                 )
-            )
 
-            # Labels
-            fig.add_trace(
-                go.Scattermapbox(
-                    lat=label_lats,
-                    lon=label_lons,
-                    mode="text",
-                    text=label_text,
-                    textfont=dict(size=11, color="#111827"),
-                    textposition="middle center",
-                    hoverinfo="skip",
-                    showlegend=False,
+                # labels
+                fig.add_trace(
+                    go.Scattermapbox(
+                        lat=label_lats,
+                        lon=label_lons,
+                        mode="text",
+                        text=label_text,
+                        textfont=dict(size=12, color="#111827"),
+                        textposition="middle left" if side in ["east"] else "middle right",
+                        hoverinfo="skip",
+                        showlegend=False,
+                    )
                 )
-            )
+
+
+            draw_group(west_labels, "west")
+            draw_group(east_labels, "east")
+            draw_group(north_labels, "north")
+            draw_group(south_labels, "south")
 
             fig.update_layout(
                 clickmode="event+select",
