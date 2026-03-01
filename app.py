@@ -30,6 +30,7 @@ from src.queries import (
 )
 from src.story_angles import STORY_ANGLES
 
+
 # ==================================================
 # CONFIG / CONSTANTS
 # ==================================================
@@ -557,6 +558,7 @@ if "mode" not in st.session_state:
 primary_city = st.session_state["selected_city"]
 primary_fips = str(cities_all.loc[cities_all["place_name"] == primary_city, "place_fips"].iloc[0])
 
+
 # ==================================================
 # HEADER + MODE
 # ==================================================
@@ -600,6 +602,9 @@ with cC:
 
 MODE = st.session_state["mode"]
 selected_year = int(st.session_state["selected_year"])
+
+st.write("Ranking columns:", get_gateway_ranking("median_income", selected_year).columns)
+st.write("Trend columns:", get_gateway_metric_trend(primary_fips, "median_income").columns)
 
 # Keep city consistent
 primary_city = st.session_state["selected_city"]
