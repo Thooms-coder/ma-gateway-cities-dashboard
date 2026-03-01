@@ -69,8 +69,6 @@ COLOR_BG = "#f4f5f6"
 COLOR_TEXT = "#2c2f33"
 COLOR_BOSTON = "#5FB3A8"
 
-MODES = ["Public", "Investigative", "Academic", "Executive"]
-
 # ==================================================
 # PAGE CONFIG
 # ==================================================
@@ -517,8 +515,6 @@ if "selected_year" not in st.session_state:
     st.session_state["selected_year"] = max_year
 if "selected_city" not in st.session_state:
     st.session_state["selected_city"] = gateway_city_options[0]
-if "mode" not in st.session_state:
-    st.session_state["mode"] = "Investigative"
 if "advanced" not in st.session_state:
     st.session_state["advanced"] = False
 
@@ -540,15 +536,6 @@ st.markdown(
 )
 
 cA, cB, cC, cD = st.columns([2.2, 1.2, 1.2, 1.0])
-
-with cA:
-    st.session_state["mode"] = st.radio(
-        "View mode",
-        MODES,
-        horizontal=True,
-        index=MODES.index(st.session_state["mode"]) if st.session_state["mode"] in MODES else 1,
-        key="mode_selector",
-    )
 
 with cB:
     st.session_state["selected_city"] = st.selectbox(
@@ -574,13 +561,12 @@ with cD:
         unsafe_allow_html=True,
     )
 
-MODE = st.session_state["mode"]
 selected_year = int(st.session_state["selected_year"])
 primary_city = st.session_state["selected_city"]
 primary_fips = str(cities_all.loc[cities_all["place_name"] == primary_city, "place_fips"].iloc[0])
 
 # One clean toggle: Advanced (only meaningful in Investigative/Academic; keep UI uncluttered)
-adv_allowed = MODE in ("Investigative", "Academic")
+adv_allowed = True
 st.session_state["advanced"] = st.toggle(
     "Advanced analysis",
     value=(st.session_state["advanced"] if adv_allowed else False),
@@ -593,16 +579,14 @@ ADV = bool(st.session_state["advanced"] and adv_allowed)
 # ==================================================
 # TABS (consistent; no extra page systems)
 # ==================================================
-tabs = ["Map", "Investigative Themes", "Compare Metrics", "Origins (B05006)"]
-if MODE == "Academic":
-    tabs.append("Methodology")
+tabs = ["Map", "Investigative Themes", "Compare Metrics", "Origins (B05006)", "Methodology"]
 
 tab_objs = st.tabs(tabs)
 tab_map = tab_objs[0]
 tab_story = tab_objs[1]
 tab_compare = tab_objs[2]
 tab_origins = tab_objs[3]
-tab_method = tab_objs[4] if MODE == "Academic" else None
+tab_method = tab_objs[4]
 
 # ==================================================
 # TAB 1: MAP (choropleth + click select + city profile)
@@ -820,7 +804,7 @@ with tab_map:
             focus_for_summary,
             advanced=ADV,
         )
-        if MODE in ("Public", "Executive"):
+        if not ADV:
             bullets = [b for b in bullets if "Trend signal" not in b]
         if not bullets:
             st.info("No summary available (missing snapshot data for this year).")
@@ -840,10 +824,6 @@ with tab_map:
             "median_home_value",
             "gini_index",
         ]
-        if MODE == "Public":
-            core_metrics = [k for k in core_metrics if k in ("total_population", "median_income", "poverty_rate", "rent_burden_30_plus")]
-        if MODE == "Executive":
-            core_metrics = [k for k in core_metrics if k in ("median_income", "poverty_rate", "rent_burden_30_plus", "median_home_value", "total_population")]
 
         cols = st.columns(4)
         for i, mk in enumerate(core_metrics):
@@ -860,8 +840,6 @@ with tab_map:
         st.markdown("## Structural Trend")
 
         structural_metrics = [k for k in ["median_income", "poverty_rate", "rent_burden_30_plus", "foreign_born_share", "total_population"] if k in catalog]
-        if MODE == "Public":
-            structural_metrics = [k for k in structural_metrics if k in ("median_income", "poverty_rate", "rent_burden_30_plus")]
 
         trend_metric = st.selectbox(
             "Select trend metric",
@@ -955,7 +933,7 @@ with tab_story:
         if not metrics:
             st.info("No metrics configured for this theme.")
         else:
-            show_metrics = metrics[:4] if MODE == "Public" else metrics
+            show_metrics = metrics[:4]
             cols = st.columns(min(len(show_metrics), 6))
             for i, mk in enumerate(show_metrics):
                 meta = catalog.get(mk, {"metric_label": mk, "format_hint": "number"})
@@ -1062,7 +1040,7 @@ with tab_story:
                             title=f"{selected_year}: {xl} (x) vs {yl} (y)",
                         )
 
-                        if MODE == "Academic" and stats.slope is not None and stats.intercept is not None:
+                        if ADV and stats.slope is not None and stats.intercept is not None:
                             xx = np.linspace(float(sc["x"].min()), float(sc["x"].max()), 50)
                             yy = stats.slope * xx + stats.intercept
                             fig_sc.add_trace(go.Scatter(x=xx, y=yy, mode="lines", name="OLS fit"))
@@ -1201,7 +1179,7 @@ with tab_compare:
                         )
                     )
 
-                if MODE == "Academic" and ADV and stats.slope is not None and stats.intercept is not None:
+                if ADV and stats.slope is not None and stats.intercept is not None:
                     x_min = float(sc["x"].min())
                     x_max = float(sc["x"].max())
                     if x_min != x_max:
@@ -1361,7 +1339,7 @@ with tab_origins:
 # ==================================================
 # TAB 5: METHODOLOGY (Academic only; tied to mode, not extra toggles)
 # ==================================================
-if tab_method is not None:
+with tab_method:
     with tab_method:
         with st.container():
             st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
