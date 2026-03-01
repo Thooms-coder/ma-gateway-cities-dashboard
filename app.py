@@ -775,8 +775,6 @@ with tab_map:
                     new_city = cities_all.loc[cities_all["place_fips"] == str(new_fips), "place_name"].iloc[0]
                     if st.session_state.get("selected_city") != new_city:
                         st.session_state["selected_city"] = new_city
-                        # hard reset selection to prevent "lag click"
-                        st.session_state["map_select"] = {"selection": {"points": []}}
                         st.rerun()
 
         # =========================
