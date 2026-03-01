@@ -1084,7 +1084,9 @@ with tab_story:
             st.plotly_chart(fig, use_container_width=True)
 
             if MODE in ("Investigative", "Academic"):
-                diag = compute_trend_diagnostics(city_trend.rename(columns={"City": "value"})[["year", "City"]].rename(columns={"City": "value"}))
+                diag = compute_trend_diagnostics(
+                    city_trend.rename(columns={"City": "value"})[["year", "value"]]
+                )
                 c1, c2, c3 = st.columns(3)
                 if diag.delta_5yr is not None:
                     c1.metric("5-year change (approx.)", fmt_delta(diag.delta_5yr, meta) or f"{diag.delta_5yr:+.3g}")
