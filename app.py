@@ -744,7 +744,7 @@ with tab_map:
             "EVERETT": (-0.005, -0.020),
         }
 
-        label_lats, label_lons, label_text, label_color, label_size = [], [], [], [], []
+        label_lats, label_lons, label_text = [], [], []
         for town_name in locations:
             town_key = normalize_geo_key(town_name)
             if town_key in allowed_gateway_names and town_key in town_centroids:
@@ -761,12 +761,6 @@ with tab_map:
                 label_lats.append(lat)
                 label_lons.append(lon)
                 label_text.append(abbr)
-                if str(fips) == str(primary_fips):
-                    label_color.append(COLOR_TARGET)
-                    label_size.append(15)
-                else:
-                    label_color.append("#111827")
-                    label_size.append(11)
 
         fig_map.add_trace(
             go.Scattermapbox(
@@ -774,11 +768,14 @@ with tab_map:
                 lon=label_lons,
                 mode="text",
                 text=label_text,
-                textfont=dict(size=11, color=label_color),
+                textfont=dict(
+                    size=11,
+                    color="black"
+                ),
                 textposition="middle center",
                 hoverinfo="skip",
                 showlegend=False,
-                below="",
+                below=""
             )
         )
 
