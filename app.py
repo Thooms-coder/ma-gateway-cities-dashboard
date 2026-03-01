@@ -746,7 +746,6 @@ with tab_map:
         st.plotly_chart(
             fig_map,
             use_container_width=True,
-            on_select="rerun",
             key="map_select",
         )
 
@@ -764,16 +763,23 @@ with tab_map:
 
         # Click-to-select (robust; no double-click logic)
         selection = st.session_state.get("map_select")
+
         if selection and selection.get("selection"):
             points = selection["selection"].get("points", [])
             loc_points = [p for p in points if p.get("location")]
+
             if loc_points:
                 clicked_town = loc_points[-1]["location"]
                 town_key = normalize_geo_key(clicked_town)
                 new_fips = town_fips_map.get(town_key)
+
                 if new_fips and str(new_fips) in gateway_fips:
-                    new_city = cities_all.loc[cities_all["place_fips"] == str(new_fips), "place_name"].iloc[0]
-                    if st.session_state.get("selected_city") != new_city:
+                    new_city = cities_all.loc[
+                        cities_all["place_fips"] == str(new_fips),
+                        "place_name"
+                    ].iloc[0]
+
+                    if st.session_state["selected_city"] != new_city:
                         st.session_state["selected_city"] = new_city
                         st.rerun()
 
