@@ -1081,10 +1081,22 @@ with tab_compare:
         st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
         st.markdown("### Compare Metrics")
 
+        # --- Select all helper buttons ---
+        btn_col1, btn_col2 = st.columns([1,1])
+
+        with btn_col1:
+            if st.button("Select All Gateway Cities"):
+                st.session_state["compare_cities"] = gateway_city_options
+
+        with btn_col2:
+            if st.button("Clear Selection"):
+                st.session_state["compare_cities"] = []
+
+        # --- City selector ---
         compare_cities = st.multiselect(
             "Select Gateway Cities",
             options=gateway_city_options,
-            default=[primary_city],
+            default=st.session_state.get("compare_cities", [primary_city]),
             key="compare_cities",
         )
         if not compare_cities:
