@@ -1082,10 +1082,9 @@ with tab_compare:
         st.markdown("### Compare Metrics")
 
         compare_cities = st.multiselect(
-            "Select Gateway Cities (Max 3)",
+            "Select Gateway Cities",
             options=gateway_city_options,
             default=[primary_city],
-            max_selections=3,
             key="compare_cities",
         )
         if not compare_cities:
