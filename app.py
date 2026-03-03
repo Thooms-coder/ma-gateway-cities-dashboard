@@ -535,32 +535,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-cA, cB, cC, cD = st.columns([2.2, 1.2, 1.2, 1.0])
-
-with cB:
-    st.session_state["selected_city"] = st.selectbox(
-        "Gateway city",
-        options=gateway_city_options,
-        index=gateway_city_options.index(st.session_state["selected_city"])
-        if st.session_state["selected_city"] in gateway_city_options
-        else 0,
-        key="global_city",
-    )
-
-with cC:
-    st.session_state["selected_year"] = st.selectbox(
-        "Analysis year",
-        options=available_years,
-        index=available_years.index(st.session_state["selected_year"]),
-        key="global_year",
-    )
-
-with cD:
-    st.markdown(
-        f"<div style='text-align:right;'><span class='pill'>Data range: <b>{min_year}–{max_year}</b></span></div>",
-        unsafe_allow_html=True,
-    )
-
 selected_year = int(st.session_state["selected_year"])
 primary_city = st.session_state["selected_city"]
 primary_fips = str(cities_all.loc[cities_all["place_name"] == primary_city, "place_fips"].iloc[0])
@@ -595,6 +569,38 @@ with tab_map:
     with st.container():
         st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
         st.markdown("### Geographic Context")
+
+        cA, cB, cC, cD = st.columns([2.2, 1.2, 1.2, 1.0])
+
+        with cB:
+            st.session_state["selected_city"] = st.selectbox(
+                "Gateway city",
+                options=gateway_city_options,
+                index=gateway_city_options.index(st.session_state["selected_city"])
+                if st.session_state["selected_city"] in gateway_city_options
+                else 0,
+                key="map_city",
+            )
+
+        with cC:
+            st.session_state["selected_year"] = st.selectbox(
+                "Analysis year",
+                options=available_years,
+                index=available_years.index(st.session_state["selected_year"]),
+                key="map_year",
+            )
+
+        with cD:
+            st.markdown(
+                f"<div style='text-align:right;'><span class='pill'>Data range: <b>{min_year}–{max_year}</b></span></div>",
+                unsafe_allow_html=True,
+            )
+
+        selected_year = int(st.session_state["selected_year"])
+        primary_city = st.session_state["selected_city"]
+        primary_fips = str(
+            cities_all.loc[cities_all["place_name"] == primary_city, "place_fips"].iloc[0]
+        )
 
         # We key the map to TOWN (as in your prior working version)
         town_fips_map = {
