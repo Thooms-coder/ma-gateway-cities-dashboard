@@ -1,6 +1,10 @@
 # Gateway Cities – Immigration & Economic Trends Dashboard  
 **CityHack 2026 – GBH Gateway Cities Challenge Submission**
 
+## Live Demo
+**Interactive Dashboard:**  
+https://ma-gateway-cities.streamlit.app
+
 ---
 
 # 1. Project Overview
@@ -9,14 +13,17 @@ This project analyzes **demographic and economic trends in Massachusetts Gateway
 
 The system combines:
 
-- **ACS Census API queries**
-- **Investigative trend analysis**
-- **Interactive visualizations**
-- **AI-assisted data exploration**
+- ACS Census API ingestion
+- Large-scale data engineering
+- Investigative trend analysis
+- Interactive visualizations
+- AI-assisted data exploration
 
 to support **journalists, civic researchers, and policy analysts** in identifying meaningful demographic and economic shifts.
 
-The dashboard is built with **Streamlit** and designed specifically for **investigative data workflows** rather than general business analytics.
+Unlike traditional dashboards that query Census APIs directly, this system required building a **structured analytics platform capable of transforming raw ACS data into journalist-ready metrics**.
+
+The dashboard is built with **Streamlit**, while the underlying data infrastructure is powered by **Supabase (PostgreSQL)**.
 
 Key goals include:
 
@@ -76,7 +83,7 @@ Reference tools used during development:
 - https://censusreporter.org
 - https://buspark.io/documentation/project-guides/census_tutorial
 
-The dashboard accesses ACS data **directly through the Census API**.
+The dashboard retrieves data via the **Census API** and stores structured datasets in **Supabase PostgreSQL** for analysis.
 
 ---
 
@@ -151,11 +158,8 @@ The dashboard analyzes:
 - Taunton  
 - Westfield  
 - Worcester  
-- plus additional MassINC-designated municipalities.
 
 ### Comparison Cities
-
-To contextualize trends:
 
 - Boston  
 - Cambridge  
@@ -170,83 +174,179 @@ Massachusetts totals are included as a **reference benchmark**.
 
 # 7. Time Coverage
 
-The dashboard uses **ACS 5-Year Estimates** covering:
+The dashboard uses **ACS 5-Year Estimates covering 2010–latest available year**.
 
-2010 – Latest Available ACS Release
-
-Because ACS is released with a lag, the latest available year depends on Census publication cycles.
+Because ACS releases data with a lag, the most recent year depends on Census publication cycles.
 
 ---
 
-# 8. Data Retrieval Architecture
+# 8. Data Engineering Architecture (Supabase)
 
-Data is retrieved dynamically from the **Census API**.
+A significant portion of the project involved building a **data engineering pipeline to transform raw Census API outputs into a structured analytics database**.
 
-Example query structure:
+The ACS API provides data in a **wide format designed for statistical tables**, not for investigative analytics. As a result, substantial transformation was required.
 
-https://api.census.gov/data/{year}/acs/acs5/subject
+The system therefore uses **Supabase PostgreSQL as a structured data warehouse layer**.
 
+### Architecture Overview
 
-The system automatically selects the correct dataset depending on the ACS table type:
+```
+Census API
+   ↓
+Python ingestion scripts
+   ↓
+Normalization & cleaning
+   ↓
+Long-format metric warehouse
+   ↓
+Supabase PostgreSQL
+   ↓
+SQL query layer
+   ↓
+Streamlit dashboard
+```
+
+---
+
+# 9. Census Data Ingestion Pipeline
+
+### 9.1 API Extraction
+
+The pipeline programmatically retrieves ACS tables using the **Census API**.
+
+Example endpoint structure:
+
+```
+https://api.census.gov/data/{year}/acs/acs5
+```
+
+The system automatically determines the correct dataset:
 
 | Table Prefix | Dataset |
-|---------------|--------|
+|--------------|--------|
 | Bxxxx | acs5 |
 | Sxxxx | acs5/subject |
 | DPxx | acs5/profile |
 
-The query engine includes:
+Extraction logic includes:
 
-- automatic dataset detection
-- year fallback logic
-- numeric coercion and validation
-- caching via Streamlit
-
----
-
-# 9. Data Processing Pipeline
-
-### 9.1 Retrieval
-
-- ACS API queried by table and year
-- Massachusetts place-level geography
-- Gateway city filtering applied
-
-### 9.2 Cleaning
-
-Data cleaning includes:
-
-- removal of malformed rows
-- numeric coercion
-- unit validation
-- handling of missing estimates
-
-### 9.3 Validation
-
-The pipeline validates:
-
-- percentage variables
-- dataset selection
-- year availability
-- value ranges
-
-This prevents common ACS issues such as:
-
-- counts labeled as percentages
-- incorrect dataset endpoints
-- clipped values
+- automated year iteration
+- variable discovery
+- dataset routing
+- error handling for unavailable variables
 
 ---
 
-# 10. Dashboard Architecture
+# 10. Data Normalization
+
+Raw Census API outputs return **wide tables where each variable is a separate column**.
+
+To enable scalable analysis, the pipeline converts data into a **long-format metric warehouse**.
+
+Example transformation:
+
+Wide ACS format:
+
+| city | B01003_001E | B19013_001E |
+|-----|-------------|-------------|
+| Chelsea | 40121 | 62750 |
+
+Long normalized format:
+
+| city | year | variable | value |
+|-----|------|----------|------|
+| Chelsea | 2022 | total_population | 40121 |
+| Chelsea | 2022 | median_income | 62750 |
+
+Benefits include:
+
+- simplified aggregation
+- scalable metric additions
+- faster analytical queries
+- consistent schema across tables
+
+---
+
+# 11. Geographic Standardization
+
+Census place names often appear in inconsistent formats.
+
+Examples:
+
+```
+Chelsea city, Massachusetts
+Chelsea CDP
+CHELSEA
+```
+
+A geographic normalization layer was implemented to:
+
+- standardize city names
+- map Census places to Gateway Cities
+- ensure consistent joins across datasets
+- align geographic units with the GeoJSON map layer
+
+This process involved:
+
+- place-name cleaning
+- uppercase normalization
+- custom city mapping tables
+- FIPS code validation
+
+---
+
+# 12. Metric Catalog Layer
+
+To simplify analysis for journalists, the system includes a **metric catalog abstraction layer**.
+
+This maps raw ACS variables into human-readable indicators.
+
+| Metric | ACS Variable |
+|------|--------------|
+| total_population | B01003_001E |
+| median_household_income | B19013_001E |
+| poverty_rate | S1701_C03_001E |
+| foreign_born_share | S0501_C02_001E |
+| renter_share | S2502_C01_013E |
+
+This allows the dashboard to query **semantic metrics instead of raw Census variables**.
+
+---
+
+# 13. Query Optimization
+
+The Supabase layer enables efficient analytics queries including:
+
+- city-level trend analysis
+- cross-city metric comparisons
+- ranking queries
+- scatterplot datasets
+- time-series aggregation
+
+SQL queries are wrapped in reusable Python functions such as:
+
+- `get_gateway_metric_snapshot()`
+- `get_gateway_metric_trend()`
+- `get_gateway_ranking()`
+- `get_gateway_scatter()`
+
+This architecture separates:
+
+- data retrieval
+- analysis logic
+- visualization logic
+
+---
+
+# 14. Dashboard Architecture
 
 The Streamlit application contains several investigative modules.
 
 ### Map View
 
-Interactive map of Massachusetts cities showing:
+Interactive Massachusetts map showing:
 
-- selected ACS metrics
+- city-level ACS metrics
 - comparative shading
 - geographic context
 
@@ -270,29 +370,30 @@ Allows cross-city comparison of indicators such as:
 
 ### Country-of-Origin Analysis
 
-Foreign-born populations broken down by **country of birth** using table **B05006**.
+Foreign-born populations broken down by **country of birth** using **table B05006**.
 
 ### Ask the Data (AI Exploration)
 
 Users can ask natural-language questions such as:
 
+```
 Which Gateway Cities have the highest foreign-born population?
+```
 
-
-The AI agent translates queries into **Census API calls and visualizations**.
+The system translates queries into **metric lookups and visualizations**.
 
 ### Methodology Panel
 
 Provides transparency regarding:
 
 - data sources
-- limitations
-- definitions
 - ACS methodology
+- definitions
+- limitations
 
 ---
 
-# 11. Investigative Analytics
+# 15. Investigative Analytics
 
 The dashboard identifies patterns including:
 
@@ -321,7 +422,7 @@ Cities can be compared across metrics including:
 
 ---
 
-# 12. Ethical & Responsible Data Use
+# 16. Ethical & Responsible Data Use
 
 ### Transparency
 
@@ -339,19 +440,19 @@ It highlights **correlations and patterns** to support responsible reporting.
 
 ### Privacy
 
-All data is **aggregated public Census data**.
+All data used is **aggregated public Census data**.
 
-No individual-level data is used.
+No individual-level data is included.
 
 ### ACS Limitations
 
 - ACS 5-year estimates smooth short-term fluctuations
-- margins of error can be large for small populations
+- margins of error may be large for small populations
 - demographic changes may reflect sampling variation
 
 ---
 
-# 13. Reproducibility
+# 17. Reproducibility
 
 ### Requirements
 
@@ -360,6 +461,8 @@ No individual-level data is used.
 - pandas
 - requests
 - plotly
+- SQLAlchemy
+- Supabase PostgreSQL
 
 ### Install Dependencies
 
@@ -368,14 +471,16 @@ pip install -r requirements.txt
 ```
 
 ### Run Locally
+
 ```bash
 streamlit run app.py
 ```
 
 ---
 
-# 14. Project Structure
+# 18. Project Structure
 
+```
 project/
 │
 ├── app.py
@@ -383,14 +488,49 @@ project/
 ├── requirements.txt
 │
 ├── data/
-│   ├── ma_municipalities.geojson
+│   └── ma_municipalities.geojson
 │
 ├── src/
 │   ├── queries.py
-│   ├── story_angles.py
 │   ├── census_fetch.py
+│   └── story_angles.py
 │
 └── assets/
-    ├── styles.css
-   
+    └── styles.css
+```
+
 ---
+
+# 19. Intended Impact
+
+This project aims to support:
+
+- accountability journalism
+- immigration reporting
+- local economic analysis
+- public-interest data transparency
+
+By transforming complex Census datasets into interpretable civic insights, the dashboard enables journalists to:
+
+- identify story leads
+- verify claims with data
+- surface underreported demographic trends
+
+---
+
+# 20. Future Development
+
+Planned enhancements include:
+
+- tract-level spatial analysis
+- immigration cohort trend modeling
+- automated anomaly detection
+- downloadable city-level story briefs
+- expanded economic indicator coverage
+
+---
+
+# 21. Contact
+
+CityHack 2026 Team  
+Gateway Cities Challenge Submission
