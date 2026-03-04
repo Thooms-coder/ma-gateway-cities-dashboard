@@ -93,10 +93,80 @@ COLOR_BG = "#f4f5f6"
 COLOR_TEXT = "#2c2f33"
 COLOR_BOSTON = "#5FB3A8"
 
-AGENT_SYSTEM_PROMPT = """
+# Curated, journalist-friendly list categorized by reporting beat
+CENSUS_VARIABLES = """
+### DEMOGRAPHICS & POPULATION
+B01003_001E: Total population (count)
+B01002_001E: Median age (years)
+S0501_C02_001E: Foreign-born share (%)
+B03002_003E: Non-Hispanic White population (count)
+B03002_004E: Black or African American population (count)
+B03002_006E: Asian population (count)
+B03002_012E: Hispanic or Latino population (count)
+
+### INCOME & INEQUALITY
+B19013_001E: Median household income ($)
+B19301_001E: Per capita income ($)
+B19083_001E: Gini Index of Income Inequality (score 0 to 1)
+S1701_C03_001E: Poverty rate (%)
+S1701_C03_002E: Child poverty rate (%)
+S1701_C03_010E: Senior (65+) poverty rate (%)
+
+### HOUSING & LIVING ARRANGEMENTS
+B25077_001E: Median home value ($)
+B25064_001E: Median gross rent ($)
+S2502_C01_013E: Renter share (%)
+DP04_0142PE: Gross rent as 35% or more of household income (severe rent burden %)
+B25002_003E: Vacant housing units (count)
+
+### EDUCATION & WORK
+S1501_C02_014E: High school graduate or higher share (%)
+S1501_C02_015E: Bachelor's degree or higher share (%)
+S2301_C04_001E: Unemployment rate (%)
+S0801_C01_009E: Workers commuting by public transit (%)
+S0801_C01_013E: Workers who worked from home (%)
+""".strip()
+
+# Expanded aliases mapping natural language to codes
+VARIABLE_ALIASES = """
+Aliases (use these in reasoning; output must still use codes):
+- "population" / "total people" -> B01003_001E
+- "median age" -> B01002_001E
+- "foreign-born share" / "immigrant share" -> S0501_C02_001E
+- "white population" -> B03002_003E
+- "black population" -> B03002_004E
+- "asian population" -> B03002_006E
+- "hispanic population" / "latino population" -> B03002_012E
+- "median income" -> B19013_001E
+- "income per person" / "per capita income" -> B19301_001E
+- "inequality" / "gini index" / "wealth gap" -> B19083_001E
+- "poverty" / "poverty rate" -> S1701_C03_001E
+- "child poverty" -> S1701_C03_002E
+- "elderly poverty" / "senior poverty" -> S1701_C03_010E
+- "median home value" / "house price" -> B25077_001E
+- "median rent" -> B25064_001E
+- "renter share" -> S2502_C01_013E
+- "rent burden" / "housing cost burden" -> DP04_0142PE
+- "vacant homes" / "vacancy" -> B25002_003E
+- "high school diploma" -> S1501_C02_014E
+- "college degree" / "bachelor's" / "highly educated" -> S1501_C02_015E
+- "unemployment" / "jobless rate" -> S2301_C04_001E
+- "public transit" / "commute by bus/train" -> S0801_C01_009E
+- "work from home" / "remote workers" -> S0801_C01_013E
+""".strip()
+        
+AGENT_SYSTEM_PROMPT = f"""
 You are an AI data journalist assistant helping users explore a dashboard about Massachusetts Gateway Cities.
 Use your tools to fetch real data or navigate the user to different tabs. 
-When you answer, be concise, insightful, and cite the data you pulled.
+
+When you answer, be concise, insightful, and cite the data you pulled. Do not overwhelm the user with raw Census codes in your final response—translate them back into plain English.
+
+### DATA DICTIONARY
+When a user asks about a topic, look up the correct Census code below and use it as the `metric_key` or `metric_x`/`metric_y` in your tool calls.
+
+{CENSUS_VARIABLES}
+
+{VARIABLE_ALIASES}
 """
 
 AGENT_TOOLS = [
@@ -123,44 +193,44 @@ AGENT_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "city_fips": {"type": "string", "description": "The FIPS code of the city"},
-                    "metric_key": {"type": "string", "description": "The internal key for the metric (e.g., 'median_income', 'rent_burden_30_plus')"}
+                    "city_fips": {"type": "string", "description": "The 5-digit FIPS code of the city. See your Data Dictionary to translate the city name to the correct FIPS code."},
+                    "metric_key": {"type": "string", "description": "The internal Census code (e.g., 'B19013_001E'). See your Data Dictionary for the correct code."}
                 },
                 "required": ["city_fips", "metric_key"]
             }
         }
     },
     {
-            "type": "function",
-            "function": {
-                "name": "compare_cities",
-                "description": "Compares a specific metric between two different Gateway cities.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "city_a_fips": {"type": "string", "description": "FIPS code of the first city"},
-                        "city_b_fips": {"type": "string", "description": "FIPS code of the second city"},
-                        "metric_key": {"type": "string", "description": "The internal key for the metric (e.g., 'median_income', 'rent_burden_30_plus')"}
-                    },
-                    "required": ["city_a_fips", "city_b_fips", "metric_key"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "get_metric_correlation",
-                "description": "Calculates the statistical correlation (r-value) between two different metrics across all Gateway cities.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "metric_x": {"type": "string", "description": "First metric key"},
-                        "metric_y": {"type": "string", "description": "Second metric key"}
-                    },
-                    "required": ["metric_x", "metric_y"]
-                }
+        "type": "function",
+        "function": {
+            "name": "compare_cities",
+            "description": "Compares a specific metric between two different Gateway cities.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "city_a_fips": {"type": "string", "description": "The 5-digit FIPS code of the first city. See your Data Dictionary."},
+                    "city_b_fips": {"type": "string", "description": "The 5-digit FIPS code of the second city. See your Data Dictionary."},
+                    "metric_key": {"type": "string", "description": "The internal Census code (e.g., 'B19013_001E'). See your Data Dictionary for the correct code."}
+                },
+                "required": ["city_a_fips", "city_b_fips", "metric_key"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_metric_correlation",
+            "description": "Calculates the statistical correlation (r-value) between two different metrics across all Gateway cities.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "metric_x": {"type": "string", "description": "First internal Census code (e.g., 'B19013_001E'). See your Data Dictionary."},
+                    "metric_y": {"type": "string", "description": "Second internal Census code. See your Data Dictionary."}
+                },
+                "required": ["metric_x", "metric_y"]
+            }
+        }
+    }
 ]
 
 # ==================================================
@@ -1980,38 +2050,67 @@ with tab_query:
         DEFAULT_GEO_PLACE = "place:*&in=state:25"
         DEFAULT_GEO_COUNTY = "county:*&in=state:25"
 
-        # Curated, journalist-friendly list (small enough for reliable AI)
+        # Curated, journalist-friendly list categorized by reporting beat
         CENSUS_VARIABLES = """
-B01003_001E: Total population (count)
+        ### DEMOGRAPHICS & POPULATION
+        B01003_001E: Total population (count)
+        B01002_001E: Median age (years)
+        S0501_C02_001E: Foreign-born share (%)
+        B03002_003E: Non-Hispanic White population (count)
+        B03002_004E: Black or African American population (count)
+        B03002_006E: Asian population (count)
+        B03002_012E: Hispanic or Latino population (count)
 
-B19013_001E: Median household income ($)
-B19301_001E: Per capita income ($)
+        ### INCOME & INEQUALITY
+        B19013_001E: Median household income ($)
+        B19301_001E: Per capita income ($)
+        B19083_001E: Gini Index of Income Inequality (score 0 to 1)
+        S1701_C03_001E: Poverty rate (%)
+        S1701_C03_002E: Child poverty rate (%)
+        S1701_C03_010E: Senior (65+) poverty rate (%)
 
-S1701_C03_001E: Poverty rate (%)
-S1701_C03_002E: Child poverty rate (%)
+        ### HOUSING & LIVING ARRANGEMENTS
+        B25077_001E: Median home value ($)
+        B25064_001E: Median gross rent ($)
+        S2502_C01_013E: Renter share (%)
+        DP04_0142PE: Gross rent as 35% or more of household income (severe rent burden %)
+        B25002_003E: Vacant housing units (count)
 
-S0501_C02_001E: Foreign-born share (%)
+        ### EDUCATION & WORK
+        S1501_C02_014E: High school graduate or higher share (%)
+        S1501_C02_015E: Bachelor's degree or higher share (%)
+        S2301_C04_001E: Unemployment rate (%)
+        S0801_C01_009E: Workers commuting by public transit (%)
+        S0801_C01_013E: Workers who worked from home (%)
+        """.strip()
 
-S2502_C01_013E: Renter share (%)
-
-B25077_001E: Median home value ($)
-B25064_001E: Median gross rent ($)
-""".strip()
-
-        # Optional: aliases strongly improve model reliability
-        # (journalists ask in natural language; model maps to codes)
+        # Expanded aliases mapping natural language to codes
         VARIABLE_ALIASES = """
-Aliases (use these in reasoning; output must still use codes)
-- "median income" -> B19013_001E
-- "income per person" / "per capita income" -> B19301_001E
-- "poverty" / "poverty rate" -> S1701_C03_001E
-- "child poverty" -> S1701_C03_002E
-- "foreign-born share" / "immigrant share" -> S0501_C02_001E
-- "renter share" -> S2502_C01_013E
-- "median rent" -> B25064_001E
-- "median home value" -> B25077_001E
-- "population" -> B01003_001E
-""".strip()
+        Aliases (use these in reasoning; output must still use codes):
+        - "population" / "total people" -> B01003_001E
+        - "median age" -> B01002_001E
+        - "foreign-born share" / "immigrant share" -> S0501_C02_001E
+        - "white population" -> B03002_003E
+        - "black population" -> B03002_004E
+        - "asian population" -> B03002_006E
+        - "hispanic population" / "latino population" -> B03002_012E
+        - "median income" -> B19013_001E
+        - "income per person" / "per capita income" -> B19301_001E
+        - "inequality" / "gini index" / "wealth gap" -> B19083_001E
+        - "poverty" / "poverty rate" -> S1701_C03_001E
+        - "child poverty" -> S1701_C03_002E
+        - "elderly poverty" / "senior poverty" -> S1701_C03_010E
+        - "median home value" / "house price" -> B25077_001E
+        - "median rent" -> B25064_001E
+        - "renter share" -> S2502_C01_013E
+        - "rent burden" / "housing cost burden" -> DP04_0142PE
+        - "vacant homes" / "vacancy" -> B25002_003E
+        - "high school diploma" -> S1501_C02_014E
+        - "college degree" / "bachelor's" / "highly educated" -> S1501_C02_015E
+        - "unemployment" / "jobless rate" -> S2301_C04_001E
+        - "public transit" / "commute by bus/train" -> S0801_C01_009E
+        - "work from home" / "remote workers" -> S0801_C01_013E
+        """.strip()
 
         # Parse allowed vars from the curated block
         ALLOWED_VARS = [
