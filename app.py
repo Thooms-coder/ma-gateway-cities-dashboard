@@ -1831,139 +1831,195 @@ with tab_origins:
                             )
 
 # ==================================================
-# TAB 5: ASK THE DATA (AI CENSUS QUERY)
+# TAB 5: ASK THE DATA (AI CENSUS QUERY) — INVESTIGATIVE
 # ==================================================
 
 with tab_query:
-
     with st.container():
-
         st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
 
         st.markdown("### Ask the Data")
-
         st.caption(
-            "Ask a question about Massachusetts Census data and the assistant will generate a chart."
+            "Ask a question about Massachusetts ACS data and the assistant will generate a chart + investigative context."
         )
 
         st.markdown(
-        """
-        **Example questions**
-
-        • Which cities have the highest median income?  
-        • Show poverty rates across Massachusetts cities  
-        • Compare renter share across MA cities  
-        """
+            """
+            **Examples**
+            • Which gateway cities have the highest median household income?  
+            • Where is poverty highest among gateway cities?  
+            • Do places with higher renter share also have higher median rent?  
+            • Compare foreign-born share vs median income across gateway cities  
+            """
         )
 
         # ==================================================
-        # Available ACS variables
+        # CONFIG
         # ==================================================
+        DEFAULT_YEAR = 2024  # latest (target)
+        DEFAULT_GEO_PLACE = "place:*&in=state:25"
+        DEFAULT_GEO_COUNTY = "county:*&in=state:25"
 
+        # Curated, journalist-friendly list (small enough for reliable AI)
         CENSUS_VARIABLES = """
-        B01003_001E: Total population
-        B19013_001E: Median household income
-        B19301_001E: Per capita income
-        B17001_002E: Population below poverty level
-        B05002_013E: Foreign-born population
-        B25003_003E: Renter occupied housing units
-        """
+B01003_001E: Total population (count)
+
+B19013_001E: Median household income ($)
+B19301_001E: Per capita income ($)
+
+S1701_C03_001E: Poverty rate (%)
+S1701_C03_002E: Child poverty rate (%)
+
+S0501_C02_001E: Foreign-born share (%)
+
+S2502_C01_013E: Renter share (%)
+
+B25077_001E: Median home value ($)
+B25064_001E: Median gross rent ($)
+""".strip()
+
+        # Optional: aliases strongly improve model reliability
+        # (journalists ask in natural language; model maps to codes)
+        VARIABLE_ALIASES = """
+Aliases (use these in reasoning; output must still use codes)
+- "median income" -> B19013_001E
+- "income per person" / "per capita income" -> B19301_001E
+- "poverty" / "poverty rate" -> S1701_C03_001E
+- "child poverty" -> S1701_C03_002E
+- "foreign-born share" / "immigrant share" -> S0501_C02_001E
+- "renter share" -> S2502_C01_013E
+- "median rent" -> B25064_001E
+- "median home value" -> B25077_001E
+- "population" -> B01003_001E
+""".strip()
+
+        # Parse allowed vars from the curated block
+        ALLOWED_VARS = [
+            line.split(":")[0].strip()
+            for line in CENSUS_VARIABLES.splitlines()
+            if ":" in line
+        ]
+        # Nice labels for UI / context
+        VAR_LABEL = {
+            line.split(":")[0].strip(): line.split(":", 1)[1].strip()
+            for line in CENSUS_VARIABLES.splitlines()
+            if ":" in line
+        }
 
         # ==================================================
-        # SYSTEM PROMPT
+        # SYSTEM PROMPT (tighter schema + journalist rules)
         # ==================================================
-
         CENSUS_QUERY_SYSTEM_PROMPT = f"""
-You are a Census data assistant helping journalists explore Massachusetts data.
+You are a Massachusetts ACS data assistant helping journalists investigate.
 
 Return ONLY a JSON object with these fields:
+variables (list of 1 or 2 ACS codes from allowed list)
+year (int)
+geo (string)
+chart_type ("bar"|"scatter")
+x_col (string)
+y_col (string)
+title (string)
+x_label (string)
+y_label (string)
 
-variables
-year
-geo
-chart_type
-x_col
-y_col
-title
-x_label
-y_label
+Rules:
+1) variables MUST be chosen from the allowed list (exact ACS codes).
+2) Prefer 1 variable for rankings (bar). Use 2 variables only for relationships (scatter).
+3) If the question is about cities/towns, geo = "{DEFAULT_GEO_PLACE}"
+4) If the question is about counties, geo = "{DEFAULT_GEO_COUNTY}"
+5) Default year = {DEFAULT_YEAR} unless user specifies otherwise.
+6) For bar charts: x_col="NAME", y_col=<variable>, chart_type="bar"
+7) For scatter charts: x_col=<var1>, y_col=<var2>, chart_type="scatter"
+8) Titles and axis labels should be journalist-readable (no ACS codes in labels).
 
-Geographies available:
-
-place:*&in=state:25   → Massachusetts cities and towns (preferred)
-county:*&in=state:25  → Massachusetts counties
-
-Available variables:
-
+Allowed variables:
 {CENSUS_VARIABLES}
 
-Example output:
+{VARIABLE_ALIASES}
 
+Example (ranking):
 {{
-"variables":["B19013_001E"],
-"year":2022,
-"geo":"county:*&in=state:25",
-"chart_type":"bar",
-"x_col":"NAME",
-"y_col":"B19013_001E",
-"title":"Median Household Income by County",
-"x_label":"City",
-"y_label":"Median Income ($)"
+  "variables":["B19013_001E"],
+  "year":{DEFAULT_YEAR},
+  "geo":"{DEFAULT_GEO_PLACE}",
+  "chart_type":"bar",
+  "x_col":"NAME",
+  "y_col":"B19013_001E",
+  "title":"Median Household Income by City (Gateway Cities)",
+  "x_label":"City",
+  "y_label":"Median household income ($)"
+}}
+
+Example (relationship):
+{{
+  "variables":["S2502_C01_013E","B25064_001E"],
+  "year":{DEFAULT_YEAR},
+  "geo":"{DEFAULT_GEO_PLACE}",
+  "chart_type":"scatter",
+  "x_col":"S2502_C01_013E",
+  "y_col":"B25064_001E",
+  "title":"Renter Share vs Median Gross Rent (Gateway Cities)",
+  "x_label":"Renter share (%)",
+  "y_label":"Median gross rent ($)"
 }}
 
 Return JSON only.
-"""
+""".strip()
 
         # ==================================================
-        # Census fetch
+        # Census fetch (with small resilience)
         # ==================================================
-        
         @st.cache_data(ttl=3600)
-        def fetch_census_data(variables, geo, year):
-
+        def fetch_census_data(variables: List[str], geo: str, year: int) -> pd.DataFrame:
             base_url = f"https://api.census.gov/data/{year}/acs/acs5"
-
             get_cols = ",".join(variables) + ",NAME"
-
             params = {"get": get_cols}
 
             for part in geo.split("&"):
+                part = part.strip()
                 if part.startswith("in="):
                     params["in"] = part[3:]
                 else:
                     params["for"] = part.replace("for=", "")
 
             census_key = st.secrets.get("CENSUS_API_KEY")
-
             if census_key:
                 params["key"] = census_key
 
-            r = requests.get(base_url, params=params, timeout=15)
-
+            r = requests.get(base_url, params=params, timeout=20)
             r.raise_for_status()
 
             data = r.json()
-
             df = pd.DataFrame(data[1:], columns=data[0])
 
             for v in variables:
                 df[v] = pd.to_numeric(df[v], errors="coerce")
 
             df["NAME"] = df["NAME"].str.replace(", Massachusetts", "", regex=False)
-
             return df
 
-        # ==================================================
-        # AI query interpreter
-        # ==================================================
+        def fetch_with_fallback_years(variables: List[str], geo: str, year: int) -> Tuple[Optional[pd.DataFrame], Optional[int], Optional[str]]:
+            """
+            If year fails (API/data availability), try year-1 and year-2.
+            Returns (df, used_year, error_msg)
+            """
+            for y in [year, year - 1, year - 2]:
+                try:
+                    df = fetch_census_data(variables, geo, int(y))
+                    return df, int(y), None
+                except Exception as e:
+                    last_err = str(e)
+            return None, None, last_err
 
-        def ask_ai(question):
-
+        # ==================================================
+        # AI interpreter (DeepSeek)
+        # ==================================================
+        def ask_ai(question: str) -> dict:
             client = OpenAI(
                 api_key=st.secrets["DEEPSEEK_API_KEY"],
                 base_url="https://api.deepseek.com",
             )
-
             response = client.chat.completions.create(
                 model="deepseek-chat",
                 response_format={"type": "json_object"},
@@ -1972,215 +2028,379 @@ Return JSON only.
                     {"role": "user", "content": question},
                 ],
             )
-
             raw = response.choices[0].message.content.strip()
-
             return json.loads(raw)
 
         # ==================================================
-        # Smart chart selection
+        # Helpers: validation, stats, investigative signals
         # ==================================================
+        def validate_query(q: dict) -> Tuple[bool, str]:
+            if not isinstance(q, dict):
+                return False, "AI response is not a JSON object."
 
-        def choose_chart_type(df, x, y, requested):
+            vars_ = q.get("variables")
+            if not isinstance(vars_, list) or len(vars_) < 1 or len(vars_) > 2:
+                return False, "variables must be a list of length 1 or 2."
 
-            # if AI explicitly requested a type, respect it
-            if requested in ["bar", "scatter", "line", "pie"]:
-                return requested
+            vars_ = [str(v).strip() for v in vars_]
+            vars_ = [v for v in vars_ if v in ALLOWED_VARS]
+            q["variables"] = vars_
+            if not q["variables"]:
+                return False, "AI requested unsupported variables."
 
-            # two numeric columns → scatter
-            if pd.api.types.is_numeric_dtype(df[x]) and pd.api.types.is_numeric_dtype(df[y]):
-                return "scatter"
+            year = q.get("year", DEFAULT_YEAR)
+            try:
+                q["year"] = int(year)
+            except Exception:
+                q["year"] = DEFAULT_YEAR
 
-            # time variable → line
-            if "year" in df.columns or "date" in df.columns:
-                return "line"
+            geo = str(q.get("geo", DEFAULT_GEO_PLACE)).strip()
+            # lock geo to the two supported patterns (prevents weird API queries)
+            if "county:*" in geo:
+                q["geo"] = DEFAULT_GEO_COUNTY
+            else:
+                q["geo"] = DEFAULT_GEO_PLACE
 
-            # categorical vs numeric → bar
-            if pd.api.types.is_numeric_dtype(df[y]):
-                return "bar"
+            chart_type = str(q.get("chart_type", "bar")).strip().lower()
+            if chart_type not in ["bar", "scatter"]:
+                chart_type = "bar"
+            q["chart_type"] = chart_type
 
-            return "bar"
+            # enforce consistent x/y behavior
+            if q["chart_type"] == "bar":
+                q["x_col"] = "NAME"
+                q["y_col"] = q.get("y_col") if q.get("y_col") in q["variables"] else q["variables"][0]
+            else:
+                # scatter must use variable codes on axes
+                if len(q["variables"]) < 2:
+                    q["chart_type"] = "bar"
+                    q["x_col"] = "NAME"
+                    q["y_col"] = q["variables"][0]
+                else:
+                    q["x_col"] = q.get("x_col") if q.get("x_col") in q["variables"] else q["variables"][0]
+                    other = q["variables"][1] if q["x_col"] == q["variables"][0] else q["variables"][0]
+                    q["y_col"] = q.get("y_col") if q.get("y_col") in q["variables"] else other
+
+            # reasonable defaults for titles/labels
+            def_label_y = VAR_LABEL.get(q["y_col"], q["y_col"])
+            def_label_x = "City" if q["chart_type"] == "bar" else VAR_LABEL.get(q["x_col"], q["x_col"])
+            q["title"] = str(q.get("title") or "ACS Comparison (Gateway Cities)").strip()
+            q["x_label"] = str(q.get("x_label") or def_label_x).strip()
+            q["y_label"] = str(q.get("y_label") or def_label_y).strip()
+
+            return True, ""
+
+        def compute_rank_context(df: pd.DataFrame, y: str, selected_name: str) -> dict:
+            out = {"mean": None, "median": None, "rank": None, "n": None, "value": None, "z": None}
+            if df is None or df.empty or y not in df.columns:
+                return out
+            ser = pd.to_numeric(df[y], errors="coerce")
+            d = df.copy()
+            d[y] = ser
+            d = d.dropna(subset=[y])
+            if d.empty:
+                return out
+
+            out["mean"] = float(d[y].mean())
+            out["median"] = float(d[y].median())
+            out["n"] = int(len(d))
+
+            if selected_name in d["NAME"].values:
+                v = float(d.loc[d["NAME"] == selected_name, y].iloc[0])
+                out["value"] = v
+                ranks = d[y].rank(ascending=False, method="min")
+                out["rank"] = int(ranks[d["NAME"] == selected_name].iloc[0])
+
+                std = float(d[y].std(ddof=0))
+                if std > 0:
+                    out["z"] = (v - out["mean"]) / std
+            return out
+
+        def compute_scatter_stats(df: pd.DataFrame, x: str, y: str) -> dict:
+            out = {"r": None, "r2": None, "slope": None, "intercept": None, "n": None}
+            if df is None or df.empty or x not in df.columns or y not in df.columns:
+                return out
+            d = df.copy()
+            d[x] = pd.to_numeric(d[x], errors="coerce")
+            d[y] = pd.to_numeric(d[y], errors="coerce")
+            d = d.dropna(subset=[x, y])
+            if len(d) < 3:
+                out["n"] = int(len(d))
+                return out
+
+            xx = d[x].to_numpy()
+            yy = d[y].to_numpy()
+
+            try:
+                r = float(np.corrcoef(xx, yy)[0, 1])
+            except Exception:
+                r = None
+            out["r"] = r
+            out["r2"] = float(r * r) if r is not None else None
+            out["n"] = int(len(d))
+
+            try:
+                m, b = np.polyfit(xx, yy, 1)
+                out["slope"] = float(m)
+                out["intercept"] = float(b)
+            except Exception:
+                pass
+
+            return out
+
+        def detect_outliers_z(df: pd.DataFrame, y: str, z_thresh: float = 2.0) -> pd.DataFrame:
+            if df is None or df.empty or y not in df.columns:
+                return pd.DataFrame()
+            d = df.copy()
+            d[y] = pd.to_numeric(d[y], errors="coerce")
+            d = d.dropna(subset=[y])
+            if len(d) < 8:
+                return pd.DataFrame()
+            mu = d[y].mean()
+            sd = d[y].std(ddof=0)
+            if sd == 0 or pd.isna(sd):
+                return pd.DataFrame()
+            d["z"] = (d[y] - mu) / sd
+            outs = d[np.abs(d["z"]) >= z_thresh].copy()
+            outs = outs.sort_values("z", ascending=False)
+            return outs[["NAME", y, "z"]]
 
         # ==================================================
-        # USER INPUT
+        # UI CONTROLS (journalist-friendly)
         # ==================================================
+        left, right = st.columns([2.2, 1.2])
 
-        question = st.text_input(
-            "",
-            placeholder="Which counties have the highest median income?"
-        )
+        with left:
+            question = st.text_input(
+                "",
+                placeholder="Example: Do gateway cities with higher renter share also have higher median rent?",
+                key="ask_data_question",
+            )
+        with right:
+            ui_year = st.selectbox(
+                "Default year",
+                options=[2024, 2023, 2022, 2021],
+                index=0,
+                help="Used when the question doesn't specify a year.",
+                key="ask_data_default_year",
+            )
+            DEFAULT_YEAR = int(ui_year)  # override default
 
-        submit = st.button("Search")
+        cA, cB, cC = st.columns([1.2, 1.0, 1.0])
+        with cA:
+            restrict_gateway = st.toggle(
+                "Restrict to Gateway Cities",
+                value=True,
+                help="If off, results include all MA places or counties.",
+                key="ask_data_gateway_only",
+            )
+        with cB:
+            top_n = st.selectbox("Top N (bar charts)", [10, 15, 20, 25, 39], index=2, key="ask_data_topn")
+        with cC:
+            show_table = st.toggle("Show data table", value=True, key="ask_data_show_table")
+
+        submit = st.button("Search", key="ask_data_submit")
 
         # ==================================================
         # EXECUTION
         # ==================================================
-
         if submit and question:
-
             with st.spinner("Interpreting question..."):
-
                 try:
                     query = ask_ai(question)
                 except Exception as e:
                     st.error(f"AI error: {e}")
                     query = None
 
-            if query and "error" not in query:
+            if query:
+                ok, msg = validate_query(query)
+                with st.expander("AI interpretation (validated)"):
+                    st.json(query)
 
-                # --------------------------------------------------
-                # Validate AI-requested variables (prevent hallucinations)
-                # --------------------------------------------------
-
-                allowed_vars = [
-                    v.split(":")[0].strip()
-                    for v in CENSUS_VARIABLES.splitlines()
-                    if ":" in v
-                ]
-
-                query["variables"] = [
-                    v for v in query["variables"]
-                    if v in allowed_vars
-                ]
-
-                if not query["variables"]:
-                    st.error("AI requested unsupported Census variables.")
+                if not ok:
+                    st.error(msg)
                     st.stop()
 
-                # --------------------------------------------------
-                # Fetch Census data
-                # --------------------------------------------------
+                # Enforce the chosen default year if AI returned none / weird
+                if not query.get("year"):
+                    query["year"] = DEFAULT_YEAR
 
-                with st.spinner("Fetching Census data..."):
-
-                    try:
-                        df = fetch_census_data(
-                            query["variables"],
-                            query["geo"],
-                            query["year"]
-                        )
-
-                        # --------------------------------------------------
-                        # Restrict to Gateway Cities
-                        # --------------------------------------------------
-                        gateway_names = [c.replace(", Massachusetts","") for c in gateway_city_options]
-                        df = df[df["NAME"].isin(gateway_names)]
-
-                    except Exception as e:
-                        st.error(f"Census API error: {e}")
-                        df = None
-
-                if df is not None and not df.empty:
-
-                    x = query.get("x_col", "NAME")
-                    y = query.get("y_col")
-
-                    # fallback if AI returned wrong column name
-                    if y not in df.columns:
-                        y = query["variables"][0]
-
-                    title = query.get("title", "Census Data")
-                    x_label = query.get("x_label", x)
-                    y_label = query.get("y_label", y)
-
-                    requested_chart = query.get("chart_type")
-                    chart_type = choose_chart_type(df, x, y, requested_chart)
-
-                    df_sorted = (
-                        df.dropna(subset=[y])
-                        .sort_values(by=y, ascending=False)
+                # Fetch with fallback years
+                with st.spinner("Fetching ACS data..."):
+                    df, used_year, err = fetch_with_fallback_years(
+                        query["variables"], query["geo"], int(query["year"])
                     )
+                    if df is None:
+                        st.error(f"ACS API error (year {query['year']} and fallbacks): {err}")
+                        st.stop()
 
-                    # Gateway context statistics
-                    gateway_mean = df[y].mean()
-                    gateway_median = df[y].median()
+                # Filter to gateway cities if needed and geo is place-level
+                if restrict_gateway and "place:*" in query["geo"]:
+                    gateway_names = [c.replace(", Massachusetts", "") for c in gateway_city_options]
+                    df = df[df["NAME"].isin(gateway_names)].copy()
 
-                    st.info(
-                    f"""
-                    Gateway City Context
+                if df is None or df.empty:
+                    st.warning("No data returned for that query.")
+                    st.stop()
 
-                    Average: **{gateway_mean:,.2f}**  
-                    Median: **{gateway_median:,.2f}**
-                    """
+                # Selected city name (for highlighting + context)
+                selected_city_full = st.session_state.get("selected_city", "")
+                selected_city_name = selected_city_full.split(",")[0] if selected_city_full else ""
+
+                chart_type = query["chart_type"]
+                x = query["x_col"]
+                y = query["y_col"]
+
+                # ==================================================
+                # INVESTIGATIVE CONTEXT (bar)
+                # ==================================================
+                if chart_type == "bar":
+                    y = y if y in df.columns else query["variables"][0]
+                    df[y] = pd.to_numeric(df[y], errors="coerce")
+
+                    df_clean = df.dropna(subset=[y]).copy()
+                    df_sorted = df_clean.sort_values(by=y, ascending=False).head(int(top_n))
+
+                    # context summary
+                    ctx = compute_rank_context(df_clean, y, selected_city_name)
+
+                    # pretty labels
+                    y_label = query.get("y_label") or VAR_LABEL.get(y, y)
+                    title = (query.get("title") or "ACS Ranking").strip()
+                    title = f"{title} — {used_year}" if used_year else title
+
+                    # story leads: outliers
+                    outs = detect_outliers_z(df_clean, y, z_thresh=2.0)
+
+                    # display info panel
+                    info_lines = []
+                    if ctx["mean"] is not None:
+                        info_lines.append(f"Average: **{ctx['mean']:,.2f}**")
+                    if ctx["median"] is not None:
+                        info_lines.append(f"Median: **{ctx['median']:,.2f}**")
+                    if ctx["rank"] is not None and ctx["n"] is not None:
+                        info_lines.append(f"**{selected_city_name} rank:** {ctx['rank']} of {ctx['n']}")
+                    if ctx["z"] is not None:
+                        info_lines.append(f"Z-score (vs gateway distribution): **{ctx['z']:+.2f}**")
+
+                    st.info("Gateway City Context\n\n" + "\n\n".join(info_lines) if info_lines else "Context unavailable.")
+
+                    # chart
+                    fig = px.bar(
+                        df_sorted,
+                        x=y,
+                        y="NAME",
+                        orientation="h",
+                        title=title,
+                        labels={y: y_label, "NAME": "City"},
                     )
-
-                    selected_city = st.session_state.get("selected_city", "")
-                    selected_city = selected_city.split(",")[0]
-
-                    df_sorted["selected"] = df_sorted["NAME"] == selected_city
-
-                    df["gateway_rank"] = df[y].rank(ascending=False, method="min")
-
-                    if chart_type == "bar":
-
-                        fig = px.bar(
-                            df_sorted,
-                            x=y,
-                            y=x,
-                            orientation="h",
-                            title=title,
-                            labels={y: y_label, x: x_label},
-                        )
-
-                        fig.update_layout(
-                            template="plotly_white",
-                            yaxis=dict(autorange="reversed")
-                        )
-
-                    elif chart_type == "scatter":
-
-                        fig = px.scatter(
-                            df_sorted,
-                            x=x,
-                            y=y,
-                            hover_name="NAME",
-                            title=title,
-                            labels={y: y_label, x: x_label},
-                        )
-
-                        # add regression line
-                        fig.update_traces(marker=dict(size=9))
-
-                        if len(df_sorted) > 3:
-                            m, b = np.polyfit(df_sorted[x], df_sorted[y], 1)
-                            xx = np.linspace(df_sorted[x].min(), df_sorted[x].max(), 50)
-                            yy = m * xx + b
-
-                            fig.add_trace(
-                                go.Scatter(x=xx, y=yy, mode="lines", name="Trend")
-                            )
-
-                    elif chart_type == "pie":
-
-                        fig = px.pie(
-                            df_sorted,
-                            values=y,
-                            names=x,
-                            title=title
-                        )
-
-                    else:
-
-                        fig = px.line(
-                            df_sorted,
-                            x=x,
-                            y=y,
-                            title=title,
-                            labels={y: y_label, x: x_label}
-                        )
-
+                    fig.update_layout(template="plotly_white", yaxis=dict(autorange="reversed"), height=560)
                     st.plotly_chart(fig, use_container_width=True)
+
+                    # outliers
+                    if outs is not None and not outs.empty:
+                        st.markdown("#### Investigative leads: statistical outliers")
+                        st.caption("Cities with unusually high/low values relative to the gateway distribution (|z| ≥ 2).")
+                        st.dataframe(outs, use_container_width=True, hide_index=True)
+
+                    if show_table:
+                        st.markdown("#### Data")
+                        st.dataframe(df_clean[["NAME", y]].sort_values(y, ascending=False), use_container_width=True, hide_index=True)
 
                     st.download_button(
                         "Download CSV",
-                        df.to_csv(index=False),
-                        "census_data.csv",
+                        df_clean.to_csv(index=False),
+                        "acs_ask_the_data.csv",
                         "text/csv",
+                        key="ask_data_download_bar",
                     )
 
+                # ==================================================
+                # INVESTIGATIVE CONTEXT (scatter)
+                # ==================================================
                 else:
+                    # enforce numeric scatter
+                    if x not in df.columns or y not in df.columns:
+                        st.error("Scatter requires two valid variable columns.")
+                        st.stop()
 
-                    st.warning("No data returned for that query.")
+                    d = df.copy()
+                    d[x] = pd.to_numeric(d[x], errors="coerce")
+                    d[y] = pd.to_numeric(d[y], errors="coerce")
+                    d = d.dropna(subset=[x, y]).copy()
+
+                    if len(d) < 5:
+                        st.warning("Not enough data points to compute a relationship.")
+                        st.stop()
+
+                    stats = compute_scatter_stats(d, x, y)
+
+                    # highlight selected city if present
+                    d["selected"] = d["NAME"] == selected_city_name
+
+                    x_label = query.get("x_label") or VAR_LABEL.get(x, x)
+                    y_label = query.get("y_label") or VAR_LABEL.get(y, y)
+                    title = (query.get("title") or "ACS Relationship").strip()
+                    title = f"{title} — {used_year}" if used_year else title
+
+                    fig = px.scatter(
+                        d,
+                        x=x,
+                        y=y,
+                        hover_name="NAME",
+                        title=title,
+                        labels={x: x_label, y: y_label},
+                    )
+
+                    # OLS line if available
+                    if stats["slope"] is not None and stats["intercept"] is not None:
+                        xx = np.linspace(float(d[x].min()), float(d[x].max()), 80)
+                        yy = stats["slope"] * xx + stats["intercept"]
+                        fig.add_trace(go.Scatter(x=xx, y=yy, mode="lines", name="OLS fit"))
+
+                        # simple outlier marking via residuals (2*sd)
+                        d["pred"] = stats["slope"] * d[x] + stats["intercept"]
+                        d["resid"] = d[y] - d["pred"]
+                        r_sd = float(d["resid"].std(ddof=0)) if len(d) else 0.0
+                        d["outlier"] = np.abs(d["resid"]) >= (2.0 * r_sd) if r_sd > 0 else False
+
+                        outs = d[d["outlier"]].copy()
+                    else:
+                        outs = pd.DataFrame()
+
+                    fig.update_layout(template="plotly_white", height=560)
+                    st.plotly_chart(fig, use_container_width=True)
+
+                    # relationship summary
+                    rel_lines = []
+                    if stats["r"] is not None:
+                        rel_lines.append(f"Correlation (r): **{stats['r']:+.2f}**")
+                    if stats["r2"] is not None:
+                        rel_lines.append(f"R²: **{stats['r2']:.2f}**")
+                    if stats["n"] is not None:
+                        rel_lines.append(f"N: **{stats['n']}**")
+                    if stats["slope"] is not None:
+                        rel_lines.append(f"OLS slope: **{stats['slope']:+.3g}** (per 1 unit of x)")
+                    st.info("Relationship summary\n\n" + "\n\n".join(rel_lines))
+
+                    # investigative leads
+                    if outs is not None and not outs.empty:
+                        st.markdown("#### Investigative leads: relationship outliers")
+                        st.caption("Cities far above/below the fitted trend (|residual| ≥ 2σ).")
+                        show_cols = ["NAME", x, y, "resid"]
+                        st.dataframe(outs[show_cols].sort_values("resid", ascending=False), use_container_width=True, hide_index=True)
+
+                    if show_table:
+                        st.markdown("#### Data")
+                        st.dataframe(d[["NAME", x, y]].sort_values(y, ascending=False), use_container_width=True, hide_index=True)
+
+                    st.download_button(
+                        "Download CSV",
+                        d.to_csv(index=False),
+                        "acs_ask_the_data.csv",
+                        "text/csv",
+                        key="ask_data_download_scatter",
+                    )
             
 # ==================================================
 # TAB 6: METHODOLOGY (Academic only; tied to mode, not extra toggles)
