@@ -309,6 +309,39 @@ load_css()
 # ==================================================
 # HELPERS
 # ==================================================
+def ui_context_bar(city_full: str, year: int, min_year: int, max_year: int):
+    city = city_full.split(",")[0]
+    c1, c2, c3, c4 = st.columns([2.2, 1.0, 1.2, 1.6])
+    with c1:
+        st.markdown(f"**City:** {city}")
+    with c2:
+        st.markdown(f"**Year:** {year}")
+    with c3:
+        st.markdown("**Dataset:** ACS 5-year")
+    with c4:
+        st.markdown(f"<span class='pill'>Range: <b>{min_year}–{max_year}</b></span>", unsafe_allow_html=True)
+
+
+def apply_chart_style(fig, height: int = 520):
+    fig.update_layout(
+        template="plotly_white",
+        height=height,
+        margin=dict(l=20, r=20, t=55, b=20),
+        legend=dict(title=""),
+        title=dict(x=0.01),
+        font=dict(size=13),
+        title_font=dict(size=18),
+    )
+    return fig
+
+
+def toast_select(city_full: str, year: int | None = None):
+    city = city_full.split(",")[0]
+    msg = f"Selected: {city}"
+    if year is not None:
+        msg += f" • {year}"
+    st.toast(msg)
+    
 def normalize_geo_key(name: str) -> str:
     s = str(name)
     s = s.replace(", Massachusetts", "")
@@ -462,25 +495,43 @@ def run_dashboard_agent(user_message: str):
 
     return response_message.content
 
-def execute_agent_action(action):
+def execute_agent_action(action: dict):
 
-    if action["action"] == "open_tab":
+    # -------------------------------------------------
+    # New schema (tab / city / year)
+    # -------------------------------------------------
+    if "tab" in action and action["tab"]:
         st.session_state["active_tab"] = action["tab"]
 
-        if "city" in action:
-            st.session_state["selected_city"] = action["city"]
-
-    elif action["action"] == "set_city":
+    if "city" in action and action["city"]:
         st.session_state["selected_city"] = action["city"]
 
-    elif action["action"] == "set_year":
-        st.session_state["selected_year"] = action["year"]
+    if "year" in action and action["year"]:
+        st.session_state["selected_year"] = int(action["year"])
 
-    elif action["action"] == "run_investigation":
-        st.session_state["active_tab"] = "Investigative Themes"
+    # -------------------------------------------------
+    # Backwards compatibility (old action-style schema)
+    # -------------------------------------------------
+    if "action" in action:
 
-    elif action["action"] == "explain_chart":
-        st.session_state["agent_explain"] = True
+        if action["action"] == "open_tab":
+            if "tab" in action:
+                st.session_state["active_tab"] = action["tab"]
+
+            if "city" in action:
+                st.session_state["selected_city"] = action["city"]
+
+        elif action["action"] == "set_city":
+            st.session_state["selected_city"] = action["city"]
+
+        elif action["action"] == "set_year":
+            st.session_state["selected_year"] = int(action["year"])
+
+        elif action["action"] == "run_investigation":
+            st.session_state["active_tab"] = "Investigative Themes"
+
+        elif action["action"] == "explain_chart":
+            st.session_state["agent_explain"] = True
 
 def render_section_card_start():
     """Drops the hidden marker that triggers your custom CSS card wrapper."""
@@ -840,11 +891,14 @@ selected_year = int(st.session_state["selected_year"])
 primary_city = st.session_state["selected_city"]
 primary_fips = str(cities_all.loc[cities_all["place_name"] == primary_city, "place_fips"].iloc[0])
 
+ui_context_bar(primary_city, selected_year, min_year, max_year)
+st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
+
 # ==================================================
 # DASHBOARD AGENT CHAT (Sidebar Copilot)
 # ==================================================
 with st.sidebar:
-    st.markdown("### 🤖 Investigative Copilot")
+    st.markdown("### Investigative Copilot")
     st.caption("Ask me to analyze trends, pull data, or navigate the dashboard.")
     st.divider()
     
@@ -967,32 +1021,39 @@ fast = max(valid_trends, key=lambda t: abs(t[1]), default=(None, None))
 
 st.markdown("## Story Leads for Journalists")
 
-st.markdown(
-    f"- **Extreme outlier:** {catalog[zmax[0]]['metric_label']} (z = {zmax[1]:+.2f})"
-    if zmax[0] and zmax[1] is not None
-    else "- Extreme outlier: not available"
-)
+c1, c2, c3 = st.columns(3)
 
-st.markdown(
-    f"- **Strongest cross-city relationship:** {catalog[best[0]]['metric_label']} vs {catalog[best[1]]['metric_label']} (r = {best[2]:+.2f})"
-    if best[0] and best[2] is not None
-    else "- Strongest relationship: not available"
-)
+with c1:
+    if zmax[0] and zmax[1] is not None:
+        st.metric("Extreme outlier", catalog[zmax[0]]["metric_label"], f"z = {zmax[1]:+.2f}")
+    else:
+        st.metric("Extreme outlier", "—")
 
-st.markdown(
-    f"- **Fastest changing trend:** {catalog[fast[0]]['metric_label']} (≈ {fast[1]:+.3g}/year)"
-    if fast[0] and fast[1] is not None
-    else "- Fastest trend: not available"
-)
+with c2:
+    if best[0] and best[1] and best[2] is not None:
+        st.metric(
+            "Strongest relationship",
+            f"{catalog[best[0]]['metric_label']} vs {catalog[best[1]]['metric_label']}",
+            f"r = {best[2]:+.2f}"
+        )
+    else:
+        st.metric("Strongest relationship", "—")
+
+with c3:
+    if fast[0] and fast[1] is not None:
+        st.metric("Fastest trend", catalog[fast[0]]["metric_label"], f"{fast[1]:+.3g}/yr")
+    else:
+        st.metric("Fastest trend", "—")
 
 st.caption(
     "Automated investigative signals generated from cross-city comparisons and time trends. "
-    "These are leads for reporting, not causal conclusions."
+    "Leads for reporting, not causal conclusions."
 )
         
 # ==================================================
-# TABS (consistent; no extra page systems)
+# TABS / NAVIGATION
 # ==================================================
+
 tabs = [
     "Map",
     "Investigative Themes",
@@ -1002,24 +1063,26 @@ tabs = [
     "Methodology",
 ]
 
-tab_index = tabs.index(st.session_state["active_tab"])
+# ensure active_tab exists
+if "active_tab" not in st.session_state:
+    st.session_state["active_tab"] = "Map"
 
-tab_objs = st.tabs(tabs)
+# Radio navigation (styled like tabs)
+selected_tab = st.radio(
+    "",
+    tabs,
+    index=tabs.index(st.session_state["active_tab"]),
+    horizontal=True,
+    label_visibility="collapsed"
+)
 
-if tab_index:
-    st.session_state["_active_tab"] = tab_index
-    
-tab_map = tab_objs[0]
-tab_story = tab_objs[1]
-tab_compare = tab_objs[2]
-tab_origins = tab_objs[3]
-tab_query = tab_objs[4]
-tab_method = tab_objs[5]
+# keep session state synced
+st.session_state["active_tab"] = selected_tab
 
 # ==================================================
 # TAB 1: MAP (choropleth + click select + city profile)
 # ==================================================
-with tab_map:
+if st.session_state["active_tab"] == "Map":
     with st.container():
         st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
         st.markdown("### Geographic Context")
@@ -1241,6 +1304,7 @@ with tab_map:
 
                     if st.session_state["selected_city"] != new_city:
                         st.session_state["selected_city"] = new_city
+                        toast_select(new_city, selected_year)
                         st.rerun()
 
         # =========================
@@ -1350,9 +1414,8 @@ with tab_map:
                 c1.metric("Gateway rank", f"{ctx.rank} / {ctx.n}")
             if ctx.percentile is not None:
                 c2.metric("Percentile (empirical)", f"{ctx.percentile:.0f}th")
-
             if ADV and ctx.z is not None:
-                c3.metric("Z-score vs gateway", f"{ctx.z:+.2f}")
+                c3.metric("Z-score vs gateway", f"{ctx.z:+.2f}", help="How many standard deviations this city is from the Gateway City mean.")
             if ADV and ctx.mean is not None and ctx.value is not None:
                 gap = ctx.value - ctx.mean
                 c4.metric("Gap vs gateway mean", f"{gap:+.3g}")
@@ -1369,7 +1432,7 @@ with tab_map:
 # ==================================================
 # TAB 2: INVESTIGATIVE THEMES (no extra toggles; Advanced controls depth)
 # ==================================================
-with tab_story:
+if st.session_state["active_tab"] == "Investigative Themes":
     with st.container():
         st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
         st.markdown("### Investigative Themes")
@@ -1610,7 +1673,7 @@ with tab_story:
 # ==================================================
 # TAB 3: COMPARE METRICS (advanced = extra stats/regression)
 # ==================================================
-with tab_compare:
+if st.session_state["active_tab"] == "Compare Metrics":
     with st.container():
         st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
         st.markdown("### Compare Metrics")
@@ -1866,7 +1929,7 @@ def country_to_iso3(name: str) -> Optional[str]:
         return None
 
 
-with tab_origins:
+if st.session_state["active_tab"] == "Origins (B05006)":
     with st.container():
 
         st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
@@ -2048,7 +2111,7 @@ with tab_origins:
 # TAB 5: ASK THE DATA (AI CENSUS QUERY) — INVESTIGATIVE
 # ==================================================
 
-with tab_query:
+if st.session_state["active_tab"] == "Ask the Data":
     with st.container():
         st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
 
@@ -2649,7 +2712,7 @@ Return JSON only.
 # TAB 6: METHODOLOGY (Academic only; tied to mode, not extra toggles)
 # ==================================================
 
-with tab_method:
+if st.session_state["active_tab"] == "Methodology":
     with st.container():
         st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
         st.markdown("### Methodology & Notes (Academic Mode)")
