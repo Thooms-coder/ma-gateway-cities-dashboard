@@ -518,6 +518,8 @@ if "selected_city" not in st.session_state:
 if "advanced" not in st.session_state:
     st.session_state["advanced"] = False
 
+ADV = st.session_state["advanced"]
+
 # ==================================================
 # HERO + TOP CONTROL STRIP (keep your design)
 # ==================================================
@@ -538,17 +540,6 @@ st.markdown(
 selected_year = int(st.session_state["selected_year"])
 primary_city = st.session_state["selected_city"]
 primary_fips = str(cities_all.loc[cities_all["place_name"] == primary_city, "place_fips"].iloc[0])
-
-# One clean toggle: Advanced (only meaningful in Investigative/Academic; keep UI uncluttered)
-adv_allowed = True
-st.session_state["advanced"] = st.toggle(
-    "Advanced analysis",
-    value=(st.session_state["advanced"] if adv_allowed else False),
-    disabled=not adv_allowed,
-    help="Shows diagnostics, full ranking tables, and relationships. Hidden in Public/Executive.",
-    key="advanced_toggle",
-)
-ADV = bool(st.session_state["advanced"] and adv_allowed)
 
 # ==================================================
 # TABS (consistent; no extra page systems)
@@ -920,6 +911,15 @@ with tab_story:
         st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
         st.markdown("### Investigative Themes")
 
+        st.session_state["advanced"] = st.toggle(
+            "Advanced analysis",
+            value=st.session_state["advanced"],
+            help="Show diagnostics, rankings, and statistical relationships across Gateway cities.",
+            key="investigative_advanced_toggle",
+        )
+
+        ADV = st.session_state["advanced"]
+
         cities_df = get_cities(gateway_only=True)
         story_city = st.selectbox(
             "Gateway City",
@@ -1087,6 +1087,10 @@ with tab_compare:
         st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
         st.markdown("### Compare Metrics")
 
+        # Initialize session state once
+        if "compare_cities" not in st.session_state:
+            st.session_state["compare_cities"] = [primary_city]
+            
         # --- Select all helper buttons ---
         btn_col1, btn_col2 = st.columns([1,1])
 
@@ -1102,7 +1106,6 @@ with tab_compare:
         compare_cities = st.multiselect(
             "Select Gateway Cities",
             options=gateway_city_options,
-            default=st.session_state.get("compare_cities", [primary_city]),
             key="compare_cities",
         )
         if not compare_cities:
@@ -1360,14 +1363,14 @@ with tab_origins:
 # ==================================================
 # TAB 5: METHODOLOGY (Academic only; tied to mode, not extra toggles)
 # ==================================================
-with tab_method:
-    with tab_method:
-        with st.container():
-            st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
-            st.markdown("### Methodology & Notes (Academic Mode)")
 
-            st.markdown(
-                """
+with tab_method:
+    with st.container():
+        st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
+        st.markdown("### Methodology & Notes (Academic Mode)")
+
+        st.markdown(
+            """
 **Data source**  
 - American Community Survey (ACS) **5-year** estimates, using **endpoint years** (e.g., “2022” represents the 2018–2022 pooled estimate).
 
@@ -1384,5 +1387,5 @@ with tab_method:
 
 **B05006 origins**  
 - Country parsing is heuristic; validate label conventions in your ETL and adjust parsing rules if needed.
-                """
-            )
+            """
+        )
