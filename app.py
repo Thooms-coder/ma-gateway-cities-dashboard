@@ -1060,6 +1060,35 @@ with tab_story:
                         fig_sc.update_layout(template="plotly_white", height=520)
                         st.plotly_chart(fig_sc, use_container_width=True)
 
+                        # -------------------------------
+                        # Dynamic caption + interpretation
+                        # -------------------------------
+                        if stats.r is not None:
+                            abs_r = abs(stats.r)
+
+                            if abs_r > 0.7:
+                                strength = "strong"
+                            elif abs_r > 0.4:
+                                strength = "moderate"
+                            elif abs_r > 0.2:
+                                strength = "weak"
+                            else:
+                                strength = "very weak"
+
+                            direction = "positive" if stats.r > 0 else "negative"
+
+                            st.caption(
+                                f"""
+                        Each point represents a Massachusetts Gateway City. The horizontal axis shows **{xl}**
+                        while the vertical axis shows **{yl}** in **{selected_year}**. The fitted line represents
+                        the ordinary least squares (OLS) trend across cities.
+
+                        Interpretation: The relationship between **{xl}** and **{yl}** is **{strength} and {direction}**
+                        (r = {stats.r:.2f}). Differences across cities suggest local housing, economic, or demographic
+                        conditions shape outcomes beyond this single relationship.
+                        """
+                            )
+    
                         c1, c2, c3 = st.columns(3)
                         if stats.r is not None:
                             c1.metric("Correlation r", f"{stats.r:+.2f}")
@@ -1203,6 +1232,36 @@ with tab_compare:
                 fig_sc.update_layout(template="plotly_white", height=560)
                 st.plotly_chart(fig_sc, use_container_width=True)
 
+                st.plotly_chart(fig_sc, use_container_width=True)
+
+                # -------------------------------
+                # Dynamic caption + interpretation
+                # -------------------------------
+                if stats.r is not None:
+                    abs_r = abs(stats.r)
+
+                    if abs_r > 0.7:
+                        strength = "strong"
+                    elif abs_r > 0.4:
+                        strength = "moderate"
+                    elif abs_r > 0.2:
+                        strength = "weak"
+                    else:
+                        strength = "very weak"
+
+                    direction = "positive" if stats.r > 0 else "negative"
+
+                    st.caption(
+                        f"""
+                Each point represents a Gateway City. The horizontal axis shows **{xl}**
+                and the vertical axis shows **{yl}** for **{sc_year}**.
+
+                The correlation across cities is **{stats.r:.2f}**, indicating a **{strength} {direction} relationship**.
+                The regression line represents the overall cross-city trend, though individual cities may deviate
+                due to local economic or housing conditions.
+                """
+                    )
+    
                 if ADV:
                     c1, c2, c3 = st.columns(3)
                     if stats.r is not None:
