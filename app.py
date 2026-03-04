@@ -2189,6 +2189,24 @@ if st.session_state["active_tab"] == "Ask the Data":
         }
 
         # ==================================================
+        # VARIABLE UNIT REGISTRY (prevents % vs count errors)
+        # ==================================================
+
+        VAR_UNIT = {}
+
+        for var, label in VAR_LABEL.items():
+            label_lower = label.lower()
+
+            if "%" in label_lower or "share" in label_lower or "rate" in label_lower:
+                VAR_UNIT[var] = "percent"
+            elif "$" in label_lower or "income" in label_lower or "rent" in label_lower or "value" in label_lower:
+                VAR_UNIT[var] = "dollars"
+            elif "age" in label_lower:
+                VAR_UNIT[var] = "years"
+            else:
+                VAR_UNIT[var] = "count"
+        
+        # ==================================================
         # SYSTEM PROMPT (tighter schema + journalist rules)
         # ==================================================
         CENSUS_QUERY_SYSTEM_PROMPT = f"""
@@ -2315,6 +2333,12 @@ Return JSON only.
 
                     for v in variables:
                         df[v] = pd.to_numeric(df[v], errors="coerce")
+
+                        # ------------------------------------------------
+                        # Normalize percentage variables
+                        # ------------------------------------------------
+                        if VAR_UNIT.get(v) == "percent":
+                            df[v] = df[v].clip(lower=0, upper=100)
 
                     df["NAME"] = df["NAME"].str.replace(", Massachusetts", "", regex=False)
 
