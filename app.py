@@ -515,10 +515,8 @@ if "selected_year" not in st.session_state:
     st.session_state["selected_year"] = max_year
 if "selected_city" not in st.session_state:
     st.session_state["selected_city"] = gateway_city_options[0]
-if "advanced" not in st.session_state:
-    st.session_state["advanced"] = False
 
-ADV = st.session_state["advanced"]
+ADV = True
 
 # ==================================================
 # HERO + TOP CONTROL STRIP (keep your design)
@@ -910,15 +908,6 @@ with tab_story:
     with st.container():
         st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
         st.markdown("### Investigative Themes")
-
-        st.session_state["advanced"] = st.toggle(
-            "Advanced analysis",
-            value=st.session_state["advanced"],
-            help="Show diagnostics, rankings, and statistical relationships across Gateway cities.",
-            key="investigative_advanced_toggle",
-        )
-
-        ADV = st.session_state["advanced"]
 
         cities_df = get_cities(gateway_only=True)
         story_city = st.selectbox(
