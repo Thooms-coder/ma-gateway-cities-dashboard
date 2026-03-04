@@ -1810,8 +1810,8 @@ with tab_query:
         """
         **Example questions**
 
-        • Which counties have the highest median income?  
-        • Show poverty rates across Massachusetts counties  
+        • Which cities have the highest median income?  
+        • Show poverty rates across Massachusetts cities  
         • Compare renter share across MA cities  
         """
         )
@@ -1848,10 +1848,10 @@ title
 x_label
 y_label
 
-Valid geographies:
+Geographies available:
 
-county:*&in=state:25
-place:*&in=state:25
+place:*&in=state:25   → Massachusetts cities and towns (preferred)
+county:*&in=state:25  → Massachusetts counties
 
 Available variables:
 
@@ -1867,7 +1867,7 @@ Example output:
 "x_col":"NAME",
 "y_col":"B19013_001E",
 "title":"Median Household Income by County",
-"x_label":"County",
+"x_label":"City",
 "y_label":"Median Income ($)"
 }}
 
