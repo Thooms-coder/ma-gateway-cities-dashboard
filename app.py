@@ -11,7 +11,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pycountry
 import streamlit as st
-
+from openai import OpenAI
 from src.queries import (
     # registry / map
     get_cities,
@@ -94,36 +94,74 @@ COLOR_TEXT = "#2c2f33"
 COLOR_BOSTON = "#5FB3A8"
 
 AGENT_SYSTEM_PROMPT = """
-You are an AI assistant helping users explore a data dashboard
-about Massachusetts Gateway Cities.
-
-You can perform these actions:
-
-open_tab
-set_city
-set_year
-explain_chart
-run_investigation
-
-Tabs available:
-Map
-Investigative Themes
-Compare Metrics
-Origins (B05006)
-Methodology
-
-Cities are Massachusetts Gateway Cities.
-
-Return ONLY JSON.
-
-Example:
-
-{
- "action": "open_tab",
- "tab": "Origins (B05006)",
- "city": "Chelsea city, Massachusetts"
-}
+You are an AI data journalist assistant helping users explore a dashboard about Massachusetts Gateway Cities.
+Use your tools to fetch real data or navigate the user to different tabs. 
+When you answer, be concise, insightful, and cite the data you pulled.
 """
+
+AGENT_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "navigate_dashboard",
+            "description": "Changes the dashboard UI state to focus on a specific tab, city, or year.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "tab": {"type": "string", "enum": ["Map", "Investigative Themes", "Compare Metrics", "Origins (B05006)", "Methodology"]},
+                    "city": {"type": "string", "description": "Full name of the Gateway city (e.g., 'Chelsea city, Massachusetts')"},
+                    "year": {"type": "integer"}
+                }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_metric_data",
+            "description": "Fetches the current value for a specific metric in a specific city.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "city_fips": {"type": "string", "description": "The FIPS code of the city"},
+                    "metric_key": {"type": "string", "description": "The internal key for the metric (e.g., 'median_income', 'rent_burden_30_plus')"}
+                },
+                "required": ["city_fips", "metric_key"]
+            }
+        }
+    },
+    {
+            "type": "function",
+            "function": {
+                "name": "compare_cities",
+                "description": "Compares a specific metric between two different Gateway cities.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "city_a_fips": {"type": "string", "description": "FIPS code of the first city"},
+                        "city_b_fips": {"type": "string", "description": "FIPS code of the second city"},
+                        "metric_key": {"type": "string", "description": "The internal key for the metric (e.g., 'median_income', 'rent_burden_30_plus')"}
+                    },
+                    "required": ["city_a_fips", "city_b_fips", "metric_key"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_metric_correlation",
+                "description": "Calculates the statistical correlation (r-value) between two different metrics across all Gateway cities.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "metric_x": {"type": "string", "description": "First metric key"},
+                        "metric_y": {"type": "string", "description": "Second metric key"}
+                    },
+                    "required": ["metric_x", "metric_y"]
+                }
+            }
+        }
+]
 
 # ==================================================
 # PAGE CONFIG
@@ -270,26 +308,89 @@ def first_existing(keys: List[str], catalog: Dict[str, Dict]) -> Optional[str]:
             return k
     return None
 
-from openai import OpenAI
-
-def run_dashboard_agent(question: str):
-
+def run_dashboard_agent(user_message: str):
     client = OpenAI(
         api_key=st.secrets["DEEPSEEK_API_KEY"],
         base_url="https://api.deepseek.com",
     )
 
+    # We pass the running chat history to the model so it remembers context
+    messages = [{"role": "system", "content": AGENT_SYSTEM_PROMPT}]
+    
+    # Format session state messages for the API
+    for msg in st.session_state["agent_messages"]:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+
+    # Add the newest prompt
+    messages.append({"role": "user", "content": user_message})
+
     response = client.chat.completions.create(
         model="deepseek-chat",
-        response_format={"type": "json_object"},
-        messages=[
-            {"role": "system", "content": AGENT_SYSTEM_PROMPT},
-            {"role": "user", "content": question},
-        ],
+        messages=messages,
+        tools=AGENT_TOOLS,
+        tool_choice="auto"
     )
+    
+    response_message = response.choices[0].message
+    tool_calls = response_message.tool_calls
 
-    raw = response.choices[0].message.content
-    return json.loads(raw)
+    if tool_calls:
+        messages.append(response_message) 
+        
+        for tool_call in tool_calls:
+            function_name = tool_call.function.name
+            args = json.loads(tool_call.function.arguments)
+            
+            if function_name == "navigate_dashboard":
+                execute_agent_action(args) # Uses your existing function!
+                tool_result = "Dashboard updated successfully. Tell the user what you did."
+                
+            elif function_name == "get_metric_data":
+                # Uses your existing cache wrappers!
+                snap = cached_gateway_metric_snapshot(args["city_fips"], args["metric_key"], st.session_state["selected_year"])
+                val = safe_float(snap.get("value", pd.Series([None])).iloc[0]) if snap is not None else "Unknown"
+                tool_result = f"The value for {args['metric_key']} is {val}."
+
+            elif function_name == "compare_cities":
+                year = st.session_state["selected_year"]
+                
+                # Fetch City A
+                snap_a = cached_gateway_metric_snapshot(args["city_a_fips"], args["metric_key"], year)
+                val_a = safe_float(snap_a.get("value", pd.Series([None])).iloc[0]) if snap_a is not None and not snap_a.empty else "Unknown"
+                
+                # Fetch City B
+                snap_b = cached_gateway_metric_snapshot(args["city_b_fips"], args["metric_key"], year)
+                val_b = safe_float(snap_b.get("value", pd.Series([None])).iloc[0]) if snap_b is not None and not snap_b.empty else "Unknown"
+                
+                tool_result = f"For {args['metric_key']} in {year}: City A ({args['city_a_fips']}) is {val_a}, City B ({args['city_b_fips']}) is {val_b}."
+
+            elif function_name == "get_metric_correlation":
+                year = st.session_state["selected_year"]
+                
+                # Use your existing scatter cache and stats function!
+                df_sc = cached_gateway_scatter(args["metric_x"], args["metric_y"], year)
+                stats = compute_scatter_stats(df_sc)
+                
+                if stats and stats.r is not None:
+                    tool_result = f"The correlation (r-value) between {args['metric_x']} and {args['metric_y']} is {stats.r:.2f} (n={stats.n} cities)."
+                else:
+                    tool_result = "Could not calculate correlation. Data might be missing."
+                    
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "name": function_name,
+                "content": str(tool_result),
+            })
+
+        # Second API Call to synthesize the final text
+        final_response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=messages,
+        )
+        return final_response.choices[0].message.content
+
+    return response_message.content
 
 def execute_agent_action(action):
 
@@ -646,18 +747,37 @@ primary_city = st.session_state["selected_city"]
 primary_fips = str(cities_all.loc[cities_all["place_name"] == primary_city, "place_fips"].iloc[0])
 
 # ==================================================
-# DASHBOARD AGENT CHAT
+# DASHBOARD AGENT CHAT (Sidebar Copilot)
 # ==================================================
-
-agent_question = st.chat_input("Ask the dashboard")
-
-if agent_question:
-    try:
-        action = run_dashboard_agent(agent_question)
-        execute_agent_action(action)
+with st.sidebar:
+    st.markdown("### 🤖 Investigative Copilot")
+    st.caption("Ask me to analyze trends, pull data, or navigate the dashboard.")
+    st.divider()
+    
+    # Render chat history
+    for msg in st.session_state["agent_messages"]:
+        if msg["role"] != "system": # Don't show system prompts
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+            
+    # Input box
+    if prompt := st.chat_input("E.g., What is the poverty trend in Lynn?"):
+        # Show user message immediately
+        with st.chat_message("user"):
+            st.markdown(prompt)
+            
+        # Get AI response
+        with st.chat_message("assistant"):
+            with st.spinner("Crunching numbers..."):
+                answer = run_dashboard_agent(prompt)
+                st.markdown(answer)
+                
+        # Save to state
+        st.session_state["agent_messages"].append({"role": "user", "content": prompt})
+        st.session_state["agent_messages"].append({"role": "assistant", "content": answer})
+        
+        # Force a rerun to update the main UI if the agent navigated
         st.rerun()
-    except Exception as e:
-        st.error(f"Agent error: {e}")
         
 # ==================================================
 # STORY LEADS (AI INVESTIGATIVE SIGNALS)
