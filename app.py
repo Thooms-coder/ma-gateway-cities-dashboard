@@ -632,11 +632,19 @@ zmax = max(
 
 pairs = [(x, y) for a in STORY_ANGLES.values() for (x, y) in a.get("investigative_pairs", []) if x in catalog and y in catalog]
 
-best = max(
-    ((x, y, compute_scatter_stats(get_gateway_scatter(x, y, selected_year) or pd.DataFrame()).r) for (x, y) in pairs),
-    key=lambda t: abs(t[2] or 0),
-    default=(None, None, None),
-)
+records = []
+
+for x, y in pairs:
+    df_sc = get_gateway_scatter(x, y, selected_year)
+
+    if df_sc is None or df_sc.empty:
+        continue
+
+    stats = compute_scatter_stats(df_sc)
+
+    records.append((x, y, stats.r))
+
+best = max(records, key=lambda t: abs(t[2] or 0), default=(None, None, None))
 
 fast = max(
     ((k, compute_trend_diagnostics(get_gateway_metric_trend(primary_fips, k) or pd.DataFrame()).slope_10yr) for k in core),
