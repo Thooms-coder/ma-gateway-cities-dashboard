@@ -622,19 +622,51 @@ primary_fips = str(cities_all.loc[cities_all["place_name"] == primary_city, "pla
 # STORY LEADS (AI INVESTIGATIVE SIGNALS)
 # ==================================================
 
-core = [k for k in ["median_income","poverty_rate","rent_burden_30_plus","foreign_born_share","total_population"] if k in catalog]
+core = [
+    k for k in [
+        "median_income",
+        "poverty_rate",
+        "rent_burden_30_plus",
+        "foreign_born_share",
+        "total_population"
+    ] if k in catalog
+]
 
-zmax = max(
-    ((k, compute_distribution_context(get_gateway_ranking(k, selected_year), primary_fips).z) for k in core),
-    key=lambda t: abs(t[1] or 0),
-    default=(None, None),
-)
+# ----------------------------
+# Extreme outlier (selected city vs distribution)
+# ----------------------------
 
-pairs = [(x, y) for a in STORY_ANGLES.values() for (x, y) in a.get("investigative_pairs", []) if x in catalog and y in catalog]
+z_records = []
+
+for k in core:
+    df_rank = get_gateway_ranking(k, selected_year)
+
+    if df_rank is None or df_rank.empty:
+        continue
+
+    ctx = compute_distribution_context(df_rank, primary_fips)
+
+    if ctx and ctx.z is not None:
+        z_records.append((k, ctx.z))
+
+zmax = max(z_records, key=lambda t: abs(t[1]), default=(None, None))
+
+
+# ----------------------------
+# Strongest cross-city relationship
+# ----------------------------
+
+pairs = [
+    (x, y)
+    for a in STORY_ANGLES.values()
+    for (x, y) in a.get("investigative_pairs", [])
+    if x in catalog and y in catalog
+]
 
 records = []
 
 for x, y in pairs:
+
     df_sc = get_gateway_scatter(x, y, selected_year)
 
     if df_sc is None or df_sc.empty:
@@ -642,15 +674,36 @@ for x, y in pairs:
 
     stats = compute_scatter_stats(df_sc)
 
-    records.append((x, y, stats.r))
+    if stats and stats.r is not None:
+        records.append((x, y, stats.r))
 
-best = max(records, key=lambda t: abs(t[2] or 0), default=(None, None, None))
+best = max(records, key=lambda t: abs(t[2]), default=(None, None, None))
 
-fast = max(
-    ((k, compute_trend_diagnostics(get_gateway_metric_trend(primary_fips, k) or pd.DataFrame()).slope_10yr) for k in core),
-    key=lambda t: abs(t[1] or 0),
-    default=(None, None),
-)
+
+# ----------------------------
+# Fastest changing trend
+# ----------------------------
+
+trend_records = []
+
+for k in core:
+
+    df_tr = get_gateway_metric_trend(primary_fips, k)
+
+    if df_tr is None or df_tr.empty:
+        continue
+
+    diag = compute_trend_diagnostics(df_tr)
+
+    if diag and diag.slope_10yr is not None:
+        trend_records.append((k, diag.slope_10yr))
+
+fast = max(trend_records, key=lambda t: abs(t[1]), default=(None, None))
+
+
+# ==================================================
+# Render section
+# ==================================================
 
 st.markdown("## Story Leads for Journalists")
 
@@ -673,29 +726,9 @@ st.markdown(
 )
 
 st.caption(
-    "Automated investigative signals generated from cross-city comparisons and time trends. These are leads for reporting, not causal conclusions."
+    "Automated investigative signals generated from cross-city comparisons and time trends. "
+    "These are leads for reporting, not causal conclusions."
 )
-
-st.sidebar.markdown("### AI Dashboard Assistant")
-
-agent_question = st.sidebar.text_input(
-    "Ask the dashboard",
-    placeholder="e.g. Compare poverty across gateway cities"
-)
-
-if st.sidebar.button("Ask Assistant"):
-
-    with st.spinner("Agent reasoning..."):
-
-        action = run_dashboard_agent(agent_question)
-
-        execute_agent_action(action)
-
-        st.session_state["agent_messages"].append(
-            {"user": agent_question, "agent": action}
-        )
-
-        st.rerun()
         
 # ==================================================
 # TABS (consistent; no extra page systems)
