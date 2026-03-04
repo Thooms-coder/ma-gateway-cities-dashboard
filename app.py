@@ -178,7 +178,7 @@ AGENT_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "tab": {"type": "string", "enum": ["Map", "Investigative Themes", "Compare Metrics", "Origins (B05006)", "Methodology"]},
+                    "tab": {"type": "string", "enum": ["Map", "Investigative Themes", "Compare Metrics", "Origins (B05006)", "Ask the Data", "Methodology"]},
                     "city": {"type": "string", "description": "Full name of the Gateway city (e.g., 'Chelsea city, Massachusetts')"},
                     "year": {"type": "integer"}
                 }
@@ -2250,36 +2250,83 @@ Return JSON only.
 """.strip()
 
         # ==================================================
-        # Census fetch (with small resilience)
+        # Census fetch (robust ACS handling)
         # ==================================================
         @st.cache_data(ttl=3600)
         def fetch_census_data(variables: List[str], geo: str, year: int) -> pd.DataFrame:
-            base_url = f"https://api.census.gov/data/{year}/acs/acs5"
+
+            import requests
+            import pandas as pd
+
+            # ------------------------------------------------
+            # Determine dataset based on variable prefix
+            # ------------------------------------------------
+            def detect_dataset(var_list):
+
+                if any(v.startswith("S") for v in var_list):
+                    return "acs/acs5/subject"
+
+                if any(v.startswith("DP") for v in var_list):
+                    return "acs/acs5/profile"
+
+                return "acs/acs5"
+
+            dataset = detect_dataset(variables)
+
+            # ------------------------------------------------
+            # Prepare parameters
+            # ------------------------------------------------
             get_cols = ",".join(variables) + ",NAME"
             params = {"get": get_cols}
 
             for part in geo.split("&"):
                 part = part.strip()
+
                 if part.startswith("in="):
                     params["in"] = part[3:]
                 else:
                     params["for"] = part.replace("for=", "")
 
             census_key = st.secrets.get("CENSUS_API_KEY")
+
             if census_key:
                 params["key"] = census_key
 
-            r = requests.get(base_url, params=params, timeout=20)
-            r.raise_for_status()
+            # ------------------------------------------------
+            # Try requested year + fallback years
+            # ------------------------------------------------
+            years_to_try = [year, year-1, year-2, year-3]
 
-            data = r.json()
-            df = pd.DataFrame(data[1:], columns=data[0])
+            last_error = None
 
-            for v in variables:
-                df[v] = pd.to_numeric(df[v], errors="coerce")
+            for y in years_to_try:
 
-            df["NAME"] = df["NAME"].str.replace(", Massachusetts", "", regex=False)
-            return df
+                base_url = f"https://api.census.gov/data/{y}/{dataset}"
+
+                try:
+
+                    r = requests.get(base_url, params=params, timeout=20)
+
+                    r.raise_for_status()
+
+                    data = r.json()
+
+                    df = pd.DataFrame(data[1:], columns=data[0])
+
+                    for v in variables:
+                        df[v] = pd.to_numeric(df[v], errors="coerce")
+
+                    df["NAME"] = df["NAME"].str.replace(", Massachusetts", "", regex=False)
+
+                    df["acs_year"] = y
+
+                    return df
+
+                except Exception as e:
+                    last_error = e
+                    continue
+
+            raise RuntimeError(f"ACS API failed for all fallback years: {last_error}")
 
         def fetch_with_fallback_years(variables: List[str], geo: str, year: int) -> Tuple[Optional[pd.DataFrame], Optional[int], Optional[str]]:
             """
