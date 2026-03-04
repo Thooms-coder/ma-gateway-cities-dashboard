@@ -880,37 +880,30 @@ primary_city = st.session_state["selected_city"]
 primary_fips = str(cities_all.loc[cities_all["place_name"] == primary_city, "place_fips"].iloc[0])
 
 # ==================================================
-# DASHBOARD AGENT CHAT (Sidebar Copilot)
+# DASHBOARD AGENT CHAT (Homepage Copilot)
 # ==================================================
-with st.sidebar:
-    st.markdown("### Investigative Copilot")
-    st.caption("Ask me to analyze trends, pull data, or navigate the dashboard.")
-    st.divider()
-    
-    # Render chat history
-    for msg in st.session_state["agent_messages"]:
-        if msg["role"] != "system": # Don't show system prompts
-            with st.chat_message(msg["role"]):
-                st.markdown(msg["content"])
-            
-    # Input box
-    if prompt := st.chat_input("E.g., What is the poverty trend in Lynn?"):
-        # Show user message immediately
-        with st.chat_message("user"):
-            st.markdown(prompt)
-            
-        # Get AI response
-        with st.chat_message("assistant"):
-            with st.spinner("Crunching numbers..."):
-                answer = run_dashboard_agent(prompt)
-                st.markdown(answer)
-                
-        # Save to state
-        st.session_state["agent_messages"].append({"role": "user", "content": prompt})
-        st.session_state["agent_messages"].append({"role": "assistant", "content": answer})
-        
-        # Force a rerun to update the main UI if the agent navigated
-        st.rerun()
+
+st.markdown("## Investigative Copilot")
+st.caption("Ask questions, pull data, or navigate the dashboard.")
+
+for msg in st.session_state["agent_messages"]:
+    if msg["role"] != "system":
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+if prompt := st.chat_input("E.g., What is the poverty trend in Lynn?"):
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+        with st.spinner("Crunching numbers..."):
+            answer = run_dashboard_agent(prompt)
+            st.markdown(answer)
+
+    st.session_state["agent_messages"].append({"role": "user", "content": prompt})
+    st.session_state["agent_messages"].append({"role": "assistant", "content": answer})
+
+    st.rerun()
         
 # ==================================================
 # STORY LEADS (AI INVESTIGATIVE SIGNALS)
@@ -1053,13 +1046,14 @@ if "active_tab" not in st.session_state:
     st.session_state["active_tab"] = "Map"
 
 # Radio navigation (styled like tabs)
-selected_tab = st.radio(
-    "",
-    tabs,
-    index=tabs.index(st.session_state["active_tab"]),
-    horizontal=True,
-    label_visibility="collapsed"
-)
+with st.container():
+    selected_tab = st.radio(
+        "",
+        tabs,
+        index=tabs.index(st.session_state["active_tab"]),
+        horizontal=True,
+        label_visibility="collapsed"
+    )
 
 # keep session state synced
 st.session_state["active_tab"] = selected_tab

@@ -19,7 +19,7 @@ html, body {
 
     /* subtle editorial lighting */
     background:
-        radial-gradient(circle at 20% 10%, #ffffff 0%, #f4f5f6 40%, #e7e9ec 100%);
+    radial-gradient(circle at 10% 5%, #ffffff 0%, #f6f7f9 40%, #e8eaed 100%);
 }
 
 /* smoother rendering */
@@ -165,10 +165,11 @@ h1, h2, h3, h4, h5 {
 
 .kpi-container:hover {
 
-    transform: perspective(600px) rotateX(2deg) rotateY(-2deg);
+    transform: perspective(600px) rotateX(2deg) rotateY(-2deg) translateY(-2px);
 
     box-shadow:
-        0 14px 28px rgba(0,0,0,0.10);
+        0 18px 36px rgba(0,0,0,0.12),
+        0 4px 8px rgba(0,0,0,0.06);
 }
 
 
@@ -264,13 +265,22 @@ div[role="radiogroup"] label {
 
 /* hover effect */
 div[role="radiogroup"] label:hover {
+
     background: rgba(0,0,0,0.04);
+
+    transform: translateY(-1px);
 }
 
 /* active tab */
 div[role="radiogroup"] input:checked + div {
+
     border-bottom: 3px solid #005ab5;
+
     color: #005ab5;
+
+    transform: translateY(-2px);
+
+    transition: all 0.25s ease;
 }
 
 div[data-testid="stTabs"] {
@@ -292,6 +302,26 @@ div[data-testid="stTabs"] button {
 }
 
 /* ==================================================
+   STICKY NAVIGATION BAR
+================================================== */
+
+div[role="radiogroup"] {
+
+    position: sticky;
+    top: 0;
+
+    background: rgba(255,255,255,0.92);
+
+    backdrop-filter: blur(10px);
+
+    z-index: 50;
+
+    box-shadow: 0 4px 14px rgba(0,0,0,0.05);
+
+    border-radius: 8px;
+}
+
+/* ==================================================
    PLOTLY CHART DEPTH
 ================================================== */
 
@@ -301,6 +331,14 @@ div[data-testid="stTabs"] button {
 
     box-shadow:
         0 6px 16px rgba(0,0,0,0.08);
+
+    transition: box-shadow 0.25s ease;
+}
+
+.js-plotly-plot:hover {
+
+    box-shadow:
+        0 14px 28px rgba(0,0,0,0.12);
 }
 
 
@@ -309,7 +347,7 @@ div[data-testid="stTabs"] button {
    FADE ANIMATIONS
 ================================================== */
 
-div[data-testid="stVerticalBlock"] {
+.section-card-marker + div {
 
     animation: fadeInUp 0.7s ease-out;
 }
@@ -338,10 +376,11 @@ button[kind="primary"] {
 
     border-radius: 6px;
 
+    font-weight: 600;
+
     transition: transform 0.15s ease,
                 box-shadow 0.15s ease;
 }
-
 
 button[kind="primary"]:hover {
 
@@ -360,6 +399,8 @@ button[kind="primary"]:hover {
 
     border-radius: 10px;
 
+    overflow: hidden;
+
     box-shadow:
         0 6px 14px rgba(0,0,0,0.06);
 }
@@ -372,7 +413,11 @@ button[kind="primary"]:hover {
 
 .block-container {
 
-    animation: fadeInPage 0.5s ease;
+    max-width: 1400px;
+
+    margin: auto;
+
+    padding-top: 2rem;
 }
 
 @keyframes fadeInPage {
@@ -386,4 +431,12 @@ button[kind="primary"]:hover {
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+div[role="radiogroup"] label {
+    border-right: 1px solid rgba(0,0,0,0.05);
+}
+
+div[role="radiogroup"] label:last-child {
+    border-right: none;
 }
