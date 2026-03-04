@@ -1978,7 +1978,11 @@ Return JSON only.
                 if df is not None and not df.empty:
 
                     x = query.get("x_col", "NAME")
-                    y = query.get("y_col", query["variables"][0])
+                    y = query.get("y_col")
+
+                    # fallback if AI returned wrong column name
+                    if y not in df.columns:
+                        y = query["variables"][0]
 
                     title = query.get("title", "Census Data")
                     x_label = query.get("x_label", x)
