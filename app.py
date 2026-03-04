@@ -1321,7 +1321,7 @@ with tab_compare:
                         c3.metric("N (cities)", f"{stats.n}")
 
 # ==================================================
-# TAB 4: ORIGINS (B05006) - hardened
+# TAB 4: ORIGINS (B05006) - hardened + improved map
 # ==================================================
 SOURCE_BIRTH_TABLE = "B05006"
 
@@ -1333,30 +1333,20 @@ def label_to_country_name(variable_label: str) -> Optional[str]:
     s = variable_label.strip()
     s = re.sub(r"^Total\s*\|\s*", "", s)
     s = re.sub(r"^Foreign-born\s*\|\s*", "", s, flags=re.IGNORECASE)
+
     parts = [p.strip() for p in s.split("|") if p.strip()]
     if not parts:
         return None
+
     last = parts[-1]
 
     bad = {
-        "Total",
-        "Europe",
-        "Asia",
-        "Africa",
-        "Oceania",
-        "Latin America",
-        "Northern America",
-        "Other",
-        "Other areas",
-        "Other Europe",
-        "Other Asia",
-        "Other Africa",
-        "Other Oceania",
-        "Other Latin America",
-        "Other Northern America",
-        "Other and unspecified",
+        "Total","Europe","Asia","Africa","Oceania","Latin America","Northern America",
+        "Other","Other areas","Other Europe","Other Asia","Other Africa","Other Oceania",
+        "Other Latin America","Other Northern America","Other and unspecified",
         "Other and unspecified areas",
     }
+
     if last in bad:
         return None
     if "total foreign-born" in last.lower():
@@ -1376,21 +1366,35 @@ def country_to_iso3(name: str) -> Optional[str]:
 
 with tab_origins:
     with st.container():
+
         st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
-        st.markdown("### Global Origins of Foreign-Born Population (Best-Effort)")
+        st.markdown("### Global Origins of Foreign-Born Population")
         st.caption(
-            "This panel uses raw B05006 rows (place of birth). Country parsing is heuristic; adjust rules if ETL naming differs."
+            "Based on ACS B05006 place-of-birth data. Country parsing uses heuristic rules and may require adjustments if ETL labels change."
         )
 
         cities_df = get_cities(gateway_only=True)
+
         origins_city = st.selectbox(
             "City for origins map",
             cities_df["place_name"].tolist(),
-            index=max(0, cities_df["place_name"].tolist().index(primary_city)) if primary_city in cities_df["place_name"].tolist() else 0,
+            index=max(
+                0,
+                cities_df["place_name"].tolist().index(primary_city)
+            ) if primary_city in cities_df["place_name"].tolist() else 0,
             key="origins_city",
         )
-        origins_fips = str(cities_df.loc[cities_df["place_name"] == origins_city, "place_fips"].iloc[0])
-        year = st.selectbox("Year", available_years, index=available_years.index(selected_year), key="origins_year")
+
+        origins_fips = str(
+            cities_df.loc[cities_df["place_name"] == origins_city, "place_fips"].iloc[0]
+        )
+
+        year = st.selectbox(
+            "Year",
+            available_years,
+            index=available_years.index(selected_year),
+            key="origins_year",
+        )
 
         try:
             df_b05006 = get_place_source_table_year(origins_fips, SOURCE_BIRTH_TABLE, int(year))
@@ -1399,63 +1403,144 @@ with tab_origins:
 
         if df_b05006 is None or df_b05006.empty:
             st.info("No B05006 rows returned for this city/year.")
+
         else:
+
             df = df_b05006.copy()
+
             if "estimate" not in df.columns or "variable_label" not in df.columns:
                 st.warning("B05006 output missing required columns: estimate / variable_label.")
+
             else:
+
                 df["estimate"] = pd.to_numeric(df["estimate"], errors="coerce")
                 df = df.dropna(subset=["estimate"])
+
                 if df.empty:
                     st.info("No numeric B05006 values available.")
+
                 else:
+
                     df["country_name"] = df["variable_label"].apply(label_to_country_name)
                     df = df.dropna(subset=["country_name"])
+
                     if df.empty:
                         st.info("No country-level rows detected in B05006.")
+
                     else:
+
                         df["iso3"] = df["country_name"].apply(country_to_iso3)
 
+                        # -------------------------------------------------
+                        # total foreign born
+                        # -------------------------------------------------
                         total_fb = None
+
                         try:
-                            mask_total = df["variable_label"].str.contains("Total foreign-born", case=False, na=False)
+                            mask_total = df["variable_label"].str.contains(
+                                "Total foreign-born", case=False, na=False
+                            )
                             if mask_total.any():
                                 total_fb = float(df.loc[mask_total, "estimate"].sum())
                         except Exception:
                             total_fb = None
 
-                        df_map = df.dropna(subset=["iso3"]).groupby(["iso3"], as_index=False)["estimate"].sum()
+                        # -------------------------------------------------
+                        # aggregated country dataset
+                        # -------------------------------------------------
+                        df_map = (
+                            df.dropna(subset=["iso3"])
+                            .groupby(["iso3", "country_name"], as_index=False)["estimate"]
+                            .sum()
+                        )
+
                         if df_map.empty:
-                            st.warning("No mappable sovereign countries found for this municipality/year.")
+                            st.warning("No mappable sovereign countries found.")
+
                         else:
+
+                            # calculate share
                             color_col = "estimate"
-                            labels = {"estimate": "Foreign-born (estimate)"}
+                            labels = {"estimate": "Foreign-born population"}
+
                             if ADV and total_fb and total_fb > 0:
                                 df_map["share"] = (df_map["estimate"] / total_fb) * 100
                                 color_col = "share"
                                 labels = {"share": "Share of foreign-born (%)"}
 
+                            # -------------------------------------------------
+                            # insight summary
+                            # -------------------------------------------------
+                            top_country = df_map.sort_values("estimate", ascending=False).iloc[0]
+
+                            if "share" in df_map.columns:
+                                st.info(
+                                    f"Largest origin group: **{top_country['country_name']}**, "
+                                    f"representing **{top_country['share']:.1f}%** of the foreign-born population."
+                                )
+                            else:
+                                st.info(
+                                    f"Largest origin group: **{top_country['country_name']}**, "
+                                    f"with **{int(top_country['estimate']):,}** residents."
+                                )
+
+                            # -------------------------------------------------
+                            # world map
+                            # -------------------------------------------------
                             fig_world = px.choropleth(
                                 df_map,
                                 locations="iso3",
                                 color=color_col,
+                                hover_name="country_name",
+                                hover_data={
+                                    "estimate": True,
+                                    "share": True if "share" in df_map.columns else False,
+                                },
+                                color_continuous_scale="Blues",
                                 title=f"Foreign-Born Population by Country of Birth — {origins_city} ({year})",
                                 labels=labels,
                             )
-                            fig_world.update_layout(template="plotly_white", height=560, margin=dict(l=10, r=10, t=60, b=10))
-                            st.plotly_chart(fig_world, use_container_width=True)
 
-                            st.markdown("#### Top mappable origins")
-                            top = (
-                                df.dropna(subset=["iso3"])
-                                .groupby(["country_name"], as_index=False)["estimate"]
-                                .sum()
-                                .sort_values("estimate", ascending=False)
-                                .head(20)
+                            fig_world.update_geos(
+                                showcoastlines=True,
+                                coastlinecolor="lightgray",
+                                showland=True,
+                                landcolor="#f7f7f7",
+                                showocean=True,
+                                oceancolor="#eef3f7",
                             )
+
+                            fig_world.update_layout(
+                                template="plotly_white",
+                                height=560,
+                                margin=dict(l=10, r=10, t=60, b=10),
+                            )
+
+                            st.plotly_chart(
+                                fig_world,
+                                use_container_width=True,
+                                key=f"origins_map_{origins_fips}_{year}",
+                            )
+
+                            # -------------------------------------------------
+                            # top origins table
+                            # -------------------------------------------------
+                            st.markdown("#### Top origin countries")
+
+                            top = (
+                                df_map.sort_values("estimate", ascending=False)
+                                .head(20)
+                                .copy()
+                            )
+
                             if ADV and total_fb and total_fb > 0:
                                 top["share_%"] = (top["estimate"] / total_fb) * 100
-                            st.dataframe(top, use_container_width=True, hide_index=True)
+
+                            st.dataframe(
+                                top[["country_name", "estimate"] + (["share_%"] if "share_%" in top.columns else [])],
+                                use_container_width=True,
+                                hide_index=True,
+                            )
 
 # ==================================================
 # TAB 5: METHODOLOGY (Academic only; tied to mode, not extra toggles)
