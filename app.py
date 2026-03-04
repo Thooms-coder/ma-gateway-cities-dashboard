@@ -2334,12 +2334,6 @@ Return JSON only.
                     for v in variables:
                         df[v] = pd.to_numeric(df[v], errors="coerce")
 
-                        # ------------------------------------------------
-                        # Normalize percentage variables
-                        # ------------------------------------------------
-                        if VAR_UNIT.get(v) == "percent":
-                            df[v] = df[v].clip(lower=0, upper=100)
-
                     df["NAME"] = df["NAME"].str.replace(", Massachusetts", "", regex=False)
 
                     df["acs_year"] = y
