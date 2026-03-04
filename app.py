@@ -1971,6 +1971,13 @@ Return JSON only.
                             query["geo"],
                             query["year"]
                         )
+
+                        # --------------------------------------------------
+                        # Restrict to Gateway Cities
+                        # --------------------------------------------------
+                        gateway_names = [c.replace(", Massachusetts","") for c in gateway_city_options]
+                        df = df[df["NAME"].isin(gateway_names)]
+
                     except Exception as e:
                         st.error(f"Census API error: {e}")
                         df = None
@@ -1990,7 +1997,17 @@ Return JSON only.
 
                     chart_type = query.get("chart_type", "bar")
 
-                    df_sorted = df.dropna(subset=[y]).sort_values(y)
+                    df_sorted = (
+                        df.dropna(subset=[y])
+                        .sort_values(by=y, ascending=False)
+                    )
+
+                    selected_city = st.session_state.get("selected_city", "")
+                    selected_city = selected_city.split(",")[0]
+
+                    df_sorted["selected"] = df_sorted["NAME"] == selected_city
+
+                    df["gateway_rank"] = df[y].rank(ascending=False, method="min")
 
                     if chart_type == "bar":
 
@@ -1999,8 +2016,10 @@ Return JSON only.
                             x=y,
                             y=x,
                             orientation="h",
+                            color="selected",
+                            color_discrete_map={True: "#4A86C5", False: "#CBD5E1"},
                             title=title,
-                            labels={y: y_label, x: x_label}
+                            labels={y: y_label, x: x_label},
                         )
 
                     elif chart_type == "scatter":
