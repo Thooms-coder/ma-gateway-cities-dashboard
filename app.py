@@ -1031,6 +1031,16 @@ with tab_story:
                         sc["is_selected"] = sc["place_fips"].astype(str) == str(place_fips)
                         stats = compute_scatter_stats(sc)
 
+                        # --------------------------------
+                        # Detect statistical outliers
+                        # --------------------------------
+                        if stats.slope is not None and stats.intercept is not None:
+                            sc["predicted"] = stats.slope * sc["x"] + stats.intercept
+                            sc["residual"] = sc["y"] - sc["predicted"]
+                            sc["outlier"] = np.abs(sc["residual"]) > (2 * sc["residual"].std())
+                        else:
+                            sc["outlier"] = False
+    
                         fig_sc = px.scatter(
                             sc,
                             x="x",
@@ -1057,6 +1067,22 @@ with tab_story:
                                 )
                             )
 
+                            # Highlight statistical outliers
+                            outliers = sc[sc["outlier"]]
+
+                            if not outliers.empty:
+                                fig_sc.add_trace(
+                                    go.Scatter(
+                                        x=outliers["x"],
+                                        y=outliers["y"],
+                                        mode="markers+text",
+                                        text=outliers["place_name"].str.split(",").str[0],
+                                        textposition="top center",
+                                        marker=dict(size=18, color="black", symbol="circle-open"),
+                                        name="Statistical outliers",
+                                    )
+                                )
+    
                         fig_sc.update_layout(template="plotly_white", height=520)
                         st.plotly_chart(fig_sc, use_container_width=True)
 
@@ -1205,6 +1231,16 @@ with tab_compare:
 
                 stats = compute_scatter_stats(sc)
 
+                # --------------------------------
+                # Detect statistical outliers
+                # --------------------------------
+                if stats.slope is not None and stats.intercept is not None:
+                    sc["predicted"] = stats.slope * sc["x"] + stats.intercept
+                    sc["residual"] = sc["y"] - sc["predicted"]
+                    sc["outlier"] = np.abs(sc["residual"]) > (2 * sc["residual"].std())
+                else:
+                    sc["outlier"] = False
+    
                 fig_sc = px.scatter(sc, x="x", y="y", hover_name="place_name", title=f"{sc_year}: {xl} (x) vs {yl} (y)")
 
                 sel = sc[sc["is_selected"]]
@@ -1229,6 +1265,21 @@ with tab_compare:
                         yy = stats.slope * xx + stats.intercept
                         fig_sc.add_trace(go.Scatter(x=xx, y=yy, mode="lines", name="OLS fit"))
 
+                    # Highlight statistical outliers
+                    outliers = sc[sc["outlier"]]
+
+                    if not outliers.empty:
+                        fig_sc.add_trace(
+                            go.Scatter(
+                                x=outliers["x"],
+                                y=outliers["y"],
+                                mode="markers+text",
+                                text=outliers["place_name"].str.split(",").str[0],
+                                textposition="top center",
+                                marker=dict(size=18, color="black", symbol="circle-open"),
+                                name="Statistical outliers",
+                            )
+                        )
                 fig_sc.update_layout(template="plotly_white", height=560)
                 st.plotly_chart(fig_sc, use_container_width=True)
 
