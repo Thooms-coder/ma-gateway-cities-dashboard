@@ -309,18 +309,6 @@ load_css()
 # ==================================================
 # HELPERS
 # ==================================================
-def ui_context_bar(city_full: str, year: int, min_year: int, max_year: int):
-    city = city_full.split(",")[0]
-    c1, c2, c3, c4 = st.columns([2.2, 1.0, 1.2, 1.6])
-    with c1:
-        st.markdown(f"**City:** {city}")
-    with c2:
-        st.markdown(f"**Year:** {year}")
-    with c3:
-        st.markdown("**Dataset:** ACS 5-year")
-    with c4:
-        st.markdown(f"<span class='pill'>Range: <b>{min_year}–{max_year}</b></span>", unsafe_allow_html=True)
-
 
 def apply_chart_style(fig, height: int = 520):
     fig.update_layout(
@@ -890,9 +878,6 @@ st.markdown(
 selected_year = int(st.session_state["selected_year"])
 primary_city = st.session_state["selected_city"]
 primary_fips = str(cities_all.loc[cities_all["place_name"] == primary_city, "place_fips"].iloc[0])
-
-ui_context_bar(primary_city, selected_year, min_year, max_year)
-st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
 
 # ==================================================
 # DASHBOARD AGENT CHAT (Sidebar Copilot)
