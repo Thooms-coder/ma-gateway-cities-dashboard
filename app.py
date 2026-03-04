@@ -1232,8 +1232,6 @@ with tab_compare:
                 fig_sc.update_layout(template="plotly_white", height=560)
                 st.plotly_chart(fig_sc, use_container_width=True)
 
-                st.plotly_chart(fig_sc, use_container_width=True)
-
                 # -------------------------------
                 # Dynamic caption + interpretation
                 # -------------------------------
