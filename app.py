@@ -250,7 +250,10 @@ from openai import OpenAI
 
 def run_dashboard_agent(question: str):
 
-    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+    client = OpenAI(
+        api_key=st.secrets["DEEPSEEK_API_KEY"],
+        base_url="https://api.deepseek.com",
+    )
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -733,7 +736,14 @@ st.caption(
 # ==================================================
 # TABS (consistent; no extra page systems)
 # ==================================================
-tabs = ["Map", "Investigative Themes", "Compare Metrics", "Origins (B05006)", "Methodology"]
+tabs = [
+    "Map",
+    "Investigative Themes",
+    "Compare Metrics",
+    "Origins (B05006)",
+    "Ask the Data",
+    "Methodology",
+]
 
 tab_index = tabs.index(st.session_state["active_tab"])
 
@@ -746,7 +756,8 @@ tab_map = tab_objs[0]
 tab_story = tab_objs[1]
 tab_compare = tab_objs[2]
 tab_origins = tab_objs[3]
-tab_method = tab_objs[4]
+tab_query = tab_objs[4]
+tab_method = tab_objs[5]
 
 # ==================================================
 # TAB 1: MAP (choropleth + click select + city profile)
@@ -1777,7 +1788,261 @@ with tab_origins:
                             )
 
 # ==================================================
-# TAB 5: METHODOLOGY (Academic only; tied to mode, not extra toggles)
+# TAB 5: ASK THE DATA (AI CENSUS QUERY)
+# ==================================================
+
+import requests
+from openai import OpenAI
+
+with tab_query:
+
+    with st.container():
+
+        st.markdown('<span class="section-card-marker"></span>', unsafe_allow_html=True)
+
+        st.markdown("### Ask the Data")
+
+        st.caption(
+            "Ask a question about Massachusetts Census data and the assistant will generate a chart."
+        )
+
+        st.markdown(
+        """
+        **Example questions**
+
+        • Which counties have the highest median income?  
+        • Show poverty rates across Massachusetts counties  
+        • Compare renter share across MA cities  
+        """
+        )
+
+        # ==================================================
+        # Available ACS variables
+        # ==================================================
+
+        CENSUS_VARIABLES = """
+        B01003_001E: Total population
+        B19013_001E: Median household income
+        B19301_001E: Per capita income
+        B17001_002E: Population below poverty level
+        B05002_013E: Foreign-born population
+        B25003_003E: Renter occupied housing units
+        """
+
+        # ==================================================
+        # SYSTEM PROMPT
+        # ==================================================
+
+        CENSUS_QUERY_SYSTEM_PROMPT = f"""
+You are a Census data assistant helping journalists explore Massachusetts data.
+
+Return ONLY a JSON object with these fields:
+
+variables
+year
+geo
+chart_type
+x_col
+y_col
+title
+x_label
+y_label
+
+Valid geographies:
+
+county:*&in=state:25
+place:*&in=state:25
+
+Available variables:
+
+{CENSUS_VARIABLES}
+
+Example output:
+
+{{
+"variables":["B19013_001E"],
+"year":2022,
+"geo":"county:*&in=state:25",
+"chart_type":"bar",
+"x_col":"NAME",
+"y_col":"B19013_001E",
+"title":"Median Household Income by County",
+"x_label":"County",
+"y_label":"Median Income ($)"
+}}
+
+Return JSON only.
+"""
+
+        # ==================================================
+        # Census fetch
+        # ==================================================
+
+        def fetch_census_data(variables, geo, year):
+
+            base_url = f"https://api.census.gov/data/{year}/acs/acs5"
+
+            get_cols = ",".join(variables) + ",NAME"
+
+            params = {"get": get_cols}
+
+            for part in geo.split("&"):
+                if part.startswith("in="):
+                    params["in"] = part[3:]
+                else:
+                    params["for"] = part.replace("for=", "")
+
+            census_key = st.secrets.get("CENSUS_API_KEY")
+
+            if census_key:
+                params["key"] = census_key
+
+            r = requests.get(base_url, params=params, timeout=15)
+
+            r.raise_for_status()
+
+            data = r.json()
+
+            df = pd.DataFrame(data[1:], columns=data[0])
+
+            for v in variables:
+                df[v] = pd.to_numeric(df[v], errors="coerce")
+
+            df["NAME"] = df["NAME"].str.replace(", Massachusetts", "", regex=False)
+
+            return df
+
+        # ==================================================
+        # AI query interpreter
+        # ==================================================
+
+        def ask_ai(question):
+
+            client = OpenAI(
+                api_key=st.secrets["DEEPSEEK_API_KEY"],
+                base_url="https://api.deepseek.com",
+            )
+
+            response = client.chat.completions.create(
+                model="deepseek-chat",
+                response_format={"type": "json_object"},
+                messages=[
+                    {"role": "system", "content": CENSUS_QUERY_SYSTEM_PROMPT},
+                    {"role": "user", "content": question},
+                ],
+            )
+
+            raw = response.choices[0].message.content.strip()
+
+            return json.loads(raw)
+
+        # ==================================================
+        # USER INPUT
+        # ==================================================
+
+        question = st.text_input(
+            "",
+            placeholder="Which counties have the highest median income?"
+        )
+
+        submit = st.button("Search")
+
+        # ==================================================
+        # EXECUTION
+        # ==================================================
+
+        if submit and question:
+
+            with st.spinner("Interpreting question..."):
+
+                try:
+                    query = ask_ai(question)
+                except Exception as e:
+                    st.error(f"AI error: {e}")
+                    query = None
+
+            if query and "error" not in query:
+
+                with st.spinner("Fetching Census data..."):
+
+                    try:
+                        df = fetch_census_data(
+                            query["variables"],
+                            query["geo"],
+                            query["year"]
+                        )
+                    except Exception as e:
+                        st.error(f"Census API error: {e}")
+                        df = None
+
+                if df is not None and not df.empty:
+
+                    x = query.get("x_col", "NAME")
+                    y = query.get("y_col", query["variables"][0])
+
+                    title = query.get("title", "Census Data")
+                    x_label = query.get("x_label", x)
+                    y_label = query.get("y_label", y)
+
+                    chart_type = query.get("chart_type", "bar")
+
+                    df_sorted = df.dropna(subset=[y]).sort_values(y)
+
+                    if chart_type == "bar":
+
+                        fig = px.bar(
+                            df_sorted,
+                            x=y,
+                            y=x,
+                            orientation="h",
+                            title=title,
+                            labels={y: y_label, x: x_label}
+                        )
+
+                    elif chart_type == "scatter":
+
+                        fig = px.scatter(
+                            df_sorted,
+                            x=x,
+                            y=y,
+                            title=title,
+                            labels={y: y_label, x: x_label}
+                        )
+
+                    elif chart_type == "pie":
+
+                        fig = px.pie(
+                            df_sorted,
+                            values=y,
+                            names=x,
+                            title=title
+                        )
+
+                    else:
+
+                        fig = px.line(
+                            df_sorted,
+                            x=x,
+                            y=y,
+                            title=title,
+                            labels={y: y_label, x: x_label}
+                        )
+
+                    st.plotly_chart(fig, use_container_width=True)
+
+                    st.download_button(
+                        "Download CSV",
+                        df.to_csv(index=False),
+                        "census_data.csv",
+                        "text/csv",
+                    )
+
+                else:
+
+                    st.warning("No data returned for that query.")
+            
+# ==================================================
+# TAB 6: METHODOLOGY (Academic only; tied to mode, not extra toggles)
 # ==================================================
 
 with tab_method:
