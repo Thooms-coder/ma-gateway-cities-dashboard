@@ -883,9 +883,6 @@ primary_fips = str(cities_all.loc[cities_all["place_name"] == primary_city, "pla
 # DASHBOARD AGENT CHAT (Homepage Copilot)
 # ==================================================
 
-st.markdown("## Investigative Copilot")
-st.caption("Ask questions, pull data, or navigate the dashboard.")
-
 for msg in st.session_state["agent_messages"]:
     if msg["role"] != "system":
         with st.chat_message(msg["role"]):
