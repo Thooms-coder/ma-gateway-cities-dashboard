@@ -280,7 +280,7 @@ def run_dashboard_agent(question: str):
     )
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="deepseek-chat",
         response_format={"type": "json_object"},
         messages=[
             {"role": "system", "content": AGENT_SYSTEM_PROMPT},
