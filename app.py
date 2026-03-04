@@ -481,7 +481,31 @@ def execute_agent_action(action):
 
     elif action["action"] == "explain_chart":
         st.session_state["agent_explain"] = True
-        
+
+def render_section_card_start():
+    """Drops the hidden marker that triggers your custom CSS card wrapper."""
+    st.markdown("<div class='section-card-marker'></div>", unsafe_allow_html=True)
+
+def render_pill(text: str):
+    """Renders a small editorial pill/tag."""
+    st.markdown(f"<span class='pill'>{text}</span>", unsafe_allow_html=True)
+
+def render_map_legend(items: list[tuple[str, str]]):
+    """
+    Renders a custom legend. 
+    Expects a list of tuples: (color_hex, label)
+    """
+    legend_html = "<div class='map-legend'>"
+    for color, label in items:
+        legend_html += f"""
+        <div class='legend-item'>
+            <span class='dot' style='background-color: {color};'></span>
+            <span>{label}</span>
+        </div>
+        """
+    legend_html += "</div>"
+    st.markdown(legend_html, unsafe_allow_html=True)
+           
 # ==================================================
 # ANALYTICS LAYER (in-app)
 # ==================================================
