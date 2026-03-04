@@ -4,7 +4,7 @@ import json
 import re
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
-
+import requests
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -29,6 +29,30 @@ from src.queries import (
     get_available_gateway_years,
 )
 from src.story_angles import STORY_ANGLES
+
+# ==================================================
+# CACHED QUERY WRAPPERS (performance)
+# ==================================================
+
+@st.cache_data(ttl=600)
+def cached_gateway_metric_snapshot(place_fips, metric_key, year):
+    return get_gateway_metric_snapshot(place_fips, metric_key, year)
+
+@st.cache_data(ttl=600)
+def cached_gateway_metric_trend(place_fips, metric_key):
+    return get_gateway_metric_trend(place_fips, metric_key)
+
+@st.cache_data(ttl=600)
+def cached_state_metric_trend(metric_key):
+    return get_state_metric_trend(metric_key)
+
+@st.cache_data(ttl=600)
+def cached_gateway_ranking(metric_key, year):
+    return get_gateway_ranking(metric_key, year)
+
+@st.cache_data(ttl=600)
+def cached_gateway_scatter(metric_x, metric_y, year):
+    return get_gateway_scatter(metric_x, metric_y, year)
 
 # ==================================================
 # CONFIG / CONSTANTS
@@ -483,8 +507,8 @@ def build_narrative_summary(
     bullets: List[str] = []
     for mk in focus_metrics:
         meta = catalog.get(mk, {"metric_label": mk})
-        snap = get_gateway_metric_snapshot(place_fips, mk, year)
-        tr = get_gateway_metric_trend(place_fips, mk)
+        snap = cached_gateway_metric_snapshot(place_fips, mk, year)
+        tr = cached_gateway_metric_trend(place_fips, mk)
 
         label = meta.get("metric_label", mk)
 
@@ -622,6 +646,20 @@ primary_city = st.session_state["selected_city"]
 primary_fips = str(cities_all.loc[cities_all["place_name"] == primary_city, "place_fips"].iloc[0])
 
 # ==================================================
+# DASHBOARD AGENT CHAT
+# ==================================================
+
+agent_question = st.chat_input("Ask the dashboard")
+
+if agent_question:
+    try:
+        action = run_dashboard_agent(agent_question)
+        execute_agent_action(action)
+        st.rerun()
+    except Exception as e:
+        st.error(f"Agent error: {e}")
+        
+# ==================================================
 # STORY LEADS (AI INVESTIGATIVE SIGNALS)
 # ==================================================
 
@@ -642,7 +680,7 @@ core = [
 z_records = []
 
 for k in core:
-    df_rank = get_gateway_ranking(k, selected_year)
+    df_rank = cached_gateway_ranking(k, selected_year)
 
     if df_rank is None or df_rank.empty:
         continue
@@ -652,7 +690,9 @@ for k in core:
     if ctx and ctx.z is not None:
         z_records.append((k, ctx.z))
 
-zmax = max(z_records, key=lambda t: abs(t[1]), default=(None, None))
+valid_z = [r for r in z_records if r[1] is not None]
+
+zmax = max(valid_z, key=lambda t: abs(t[1]), default=(None, None))
 
 
 # ----------------------------
@@ -670,7 +710,7 @@ records = []
 
 for x, y in pairs:
 
-    df_sc = get_gateway_scatter(x, y, selected_year)
+    df_sc = cached_gateway_scatter(x, y, selected_year)
 
     if df_sc is None or df_sc.empty:
         continue
@@ -680,8 +720,9 @@ for x, y in pairs:
     if stats and stats.r is not None:
         records.append((x, y, stats.r))
 
-best = max(records, key=lambda t: abs(t[2]), default=(None, None, None))
+valid_records = [r for r in records if r[2] is not None]
 
+best = max(valid_records, key=lambda t: abs(t[2]), default=(None, None, None))
 
 # ----------------------------
 # Fastest changing trend
@@ -691,7 +732,7 @@ trend_records = []
 
 for k in core:
 
-    df_tr = get_gateway_metric_trend(primary_fips, k)
+    df_tr = cached_gateway_metric_trend(primary_fips, k)
 
     if df_tr is None or df_tr.empty:
         continue
@@ -701,7 +742,9 @@ for k in core:
     if diag and diag.slope_10yr is not None:
         trend_records.append((k, diag.slope_10yr))
 
-fast = max(trend_records, key=lambda t: abs(t[1]), default=(None, None))
+valid_trends = [r for r in trend_records if r[1] is not None]
+
+fast = max(valid_trends, key=lambda t: abs(t[1]), default=(None, None))
 
 
 # ==================================================
@@ -836,7 +879,7 @@ with tab_map:
             if lats and lons:
                 town_centroids[town_key] = (sum(lats) / len(lats), sum(lons) / len(lons))
 
-        @st.cache_data
+        @st.cache_data(ttl=3600)
         def build_map(
             geojson: dict,
             locations_in: List[str],
@@ -1035,7 +1078,7 @@ with tab_map:
         cols = st.columns(4)
         for i, mk in enumerate(core_metrics):
             meta = catalog.get(mk, {"metric_label": mk})
-            snap = get_gateway_metric_snapshot(primary_fips, mk, selected_year)
+            snap = cached_gateway_metric_snapshot(primary_fips, mk, selected_year)
             if snap is None or snap.empty:
                 cols[i % 4].metric(meta.get("metric_label", mk), "—")
                 continue
@@ -1055,8 +1098,8 @@ with tab_map:
             key="map_trend_focus",
         )
 
-        city_tr = get_gateway_metric_trend(primary_fips, trend_metric)
-        state_tr = get_state_metric_trend(trend_metric)
+        city_tr = cached_gateway_metric_trend(primary_fips, trend_metric)
+        state_tr = cached_state_metric_trend(trend_metric)
         meta = catalog.get(trend_metric, {"metric_label": trend_metric})
 
         if city_tr is not None and not city_tr.empty:
@@ -1082,7 +1125,7 @@ with tab_map:
         st.divider()
         st.markdown(f"## Gateway Position — {meta.get('metric_label', trend_metric)} ({selected_year})")
 
-        rank_df = get_gateway_ranking(trend_metric, selected_year)
+        rank_df = cached_gateway_ranking(trend_metric, selected_year)
         if rank_df is None or rank_df.empty:
             st.info("No ranking data available.")
         else:
@@ -1144,7 +1187,7 @@ with tab_story:
             cols = st.columns(min(len(show_metrics), 6))
             for i, mk in enumerate(show_metrics):
                 meta = catalog.get(mk, {"metric_label": mk, "format_hint": "number"})
-                snap = get_gateway_metric_snapshot(place_fips, mk, selected_year)
+                snap = cached_gateway_metric_snapshot(place_fips, mk, selected_year)
                 if snap is None or snap.empty:
                     cols[i % len(cols)].metric(meta.get("metric_label", mk), "—")
                     continue
@@ -1161,8 +1204,8 @@ with tab_story:
             key="lead_metric",
         )
 
-        city_trend = get_gateway_metric_trend(place_fips, lead_metric)
-        ma_trend = get_state_metric_trend(lead_metric)
+        city_trend = cached_gateway_metric_trend(place_fips, lead_metric)
+        ma_trend = cached_state_metric_trend(lead_metric)
 
         meta = catalog.get(lead_metric, {"metric_label": lead_metric})
         st.markdown(f"**Trend:** {meta.get('metric_label', lead_metric)}")
@@ -1190,7 +1233,7 @@ with tab_story:
         st.divider()
         st.markdown(f"### Gateway Ranking — {meta.get('metric_label')} ({selected_year})")
 
-        rank_df = get_gateway_ranking(lead_metric, selected_year)
+        rank_df = cached_gateway_ranking(lead_metric, selected_year)
         if rank_df is None or rank_df.empty:
             st.info("No ranking data available for this metric/year.")
         else:
@@ -1222,7 +1265,7 @@ with tab_story:
                 idx = st.selectbox("Choose a comparison", range(len(pairs)), format_func=lambda i: pair_labels[i], key="pair_idx")
                 xk, yk = pairs[idx]
 
-                sc = get_gateway_scatter(xk, yk, selected_year)
+                sc = cached_gateway_scatter(xk, yk, selected_year)
                 xl = catalog.get(xk, {"metric_label": xk}).get("metric_label", xk)
                 yl = catalog.get(yk, {"metric_label": yk}).get("metric_label", yk)
 
@@ -1405,7 +1448,7 @@ with tab_compare:
             st.markdown("**Multi-city trend**")
             fig = go.Figure()
             for city_name, fips in selected_fips.items():
-                tr = get_gateway_metric_trend(fips, metric_to_compare)
+                tr = cached_gateway_metric_trend(fips, metric_to_compare)
                 if tr is None or tr.empty:
                     continue
                 fig.add_trace(go.Scatter(x=tr["year"], y=tr["value"], mode="lines", name=city_name.split(",")[0]))
@@ -1441,7 +1484,7 @@ with tab_compare:
         with c3:
             sc_year = st.selectbox("Year", available_years, index=available_years.index(selected_year), key="scatter_year")
 
-        sc = get_gateway_scatter(metric_x, metric_y, sc_year)
+        sc = cached_gateway_scatter(metric_x, metric_y, sc_year)
         if sc is None or sc.empty:
             st.info("No data available for that scatter combination.")
         else:
@@ -1791,9 +1834,6 @@ with tab_origins:
 # TAB 5: ASK THE DATA (AI CENSUS QUERY)
 # ==================================================
 
-import requests
-from openai import OpenAI
-
 with tab_query:
 
     with st.container():
@@ -1877,7 +1917,8 @@ Return JSON only.
         # ==================================================
         # Census fetch
         # ==================================================
-
+        
+        @st.cache_data(ttl=3600)
         def fetch_census_data(variables, geo, year):
 
             base_url = f"https://api.census.gov/data/{year}/acs/acs5"
@@ -1986,6 +2027,29 @@ Return JSON only.
                     query = None
 
             if query and "error" not in query:
+
+                # --------------------------------------------------
+                # Validate AI-requested variables (prevent hallucinations)
+                # --------------------------------------------------
+
+                allowed_vars = [
+                    v.split(":")[0].strip()
+                    for v in CENSUS_VARIABLES.splitlines()
+                    if ":" in v
+                ]
+
+                query["variables"] = [
+                    v for v in query["variables"]
+                    if v in allowed_vars
+                ]
+
+                if not query["variables"]:
+                    st.error("AI requested unsupported Census variables.")
+                    st.stop()
+
+                # --------------------------------------------------
+                # Fetch Census data
+                # --------------------------------------------------
 
                 with st.spinner("Fetching Census data..."):
 

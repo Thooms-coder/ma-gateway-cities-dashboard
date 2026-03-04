@@ -787,3 +787,14 @@ def get_gateway_scatter(metric_x: str, metric_y: str, year: int) -> pd.DataFrame
         "metric_y": metric_y,
         "year": int(year),
     })
+    
+def get_metric_for_all_gateway_cities(metric_key: str, year: int) -> pd.DataFrame:
+    return run_query(f"""
+        SELECT place_fips::text,
+               place_name,
+               metric_value
+        FROM {GATEWAY_METRICS}
+        WHERE metric_key = :metric_key
+          AND year = :year
+        ORDER BY place_name;
+    """, {"metric_key": metric_key, "year": int(year)})
