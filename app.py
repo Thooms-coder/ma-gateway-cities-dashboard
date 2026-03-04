@@ -69,6 +69,38 @@ COLOR_BG = "#f4f5f6"
 COLOR_TEXT = "#2c2f33"
 COLOR_BOSTON = "#5FB3A8"
 
+AGENT_SYSTEM_PROMPT = """
+You are an AI assistant helping users explore a data dashboard
+about Massachusetts Gateway Cities.
+
+You can perform these actions:
+
+open_tab
+set_city
+set_year
+explain_chart
+run_investigation
+
+Tabs available:
+Map
+Investigative Themes
+Compare Metrics
+Origins (B05006)
+Methodology
+
+Cities are Massachusetts Gateway Cities.
+
+Return ONLY JSON.
+
+Example:
+
+{
+ "action": "open_tab",
+ "tab": "Origins (B05006)",
+ "city": "Chelsea city, Massachusetts"
+}
+"""
+
 # ==================================================
 # PAGE CONFIG
 # ==================================================
@@ -214,7 +246,44 @@ def first_existing(keys: List[str], catalog: Dict[str, Dict]) -> Optional[str]:
             return k
     return None
 
+from openai import OpenAI
 
+def run_dashboard_agent(question: str):
+
+    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": AGENT_SYSTEM_PROMPT},
+            {"role": "user", "content": question},
+        ],
+    )
+
+    raw = response.choices[0].message.content
+    return json.loads(raw)
+
+def execute_agent_action(action):
+
+    if action["action"] == "open_tab":
+        st.session_state["active_tab"] = action["tab"]
+
+        if "city" in action:
+            st.session_state["selected_city"] = action["city"]
+
+    elif action["action"] == "set_city":
+        st.session_state["selected_city"] = action["city"]
+
+    elif action["action"] == "set_year":
+        st.session_state["selected_year"] = action["year"]
+
+    elif action["action"] == "run_investigation":
+        st.session_state["active_tab"] = "Investigative Themes"
+
+    elif action["action"] == "explain_chart":
+        st.session_state["agent_explain"] = True
+        
 # ==================================================
 # ANALYTICS LAYER (in-app)
 # ==================================================
@@ -519,6 +588,16 @@ if "selected_city" not in st.session_state:
 ADV = True
 
 # ==================================================
+# AGENT STATE
+# ==================================================
+
+if "agent_messages" not in st.session_state:
+    st.session_state["agent_messages"] = []
+
+if "active_tab" not in st.session_state:
+    st.session_state["active_tab"] = "Map"
+    
+# ==================================================
 # HERO + TOP CONTROL STRIP (keep your design)
 # ==================================================
 st.markdown(
@@ -540,11 +619,88 @@ primary_city = st.session_state["selected_city"]
 primary_fips = str(cities_all.loc[cities_all["place_name"] == primary_city, "place_fips"].iloc[0])
 
 # ==================================================
+# STORY LEADS (AI INVESTIGATIVE SIGNALS)
+# ==================================================
+
+core = [k for k in ["median_income","poverty_rate","rent_burden_30_plus","foreign_born_share","total_population"] if k in catalog]
+
+zmax = max(
+    ((k, compute_distribution_context(get_gateway_ranking(k, selected_year), primary_fips).z) for k in core),
+    key=lambda t: abs(t[1] or 0),
+    default=(None, None),
+)
+
+pairs = [(x, y) for a in STORY_ANGLES.values() for (x, y) in a.get("investigative_pairs", []) if x in catalog and y in catalog]
+
+best = max(
+    ((x, y, compute_scatter_stats(get_gateway_scatter(x, y, selected_year) or pd.DataFrame()).r) for (x, y) in pairs),
+    key=lambda t: abs(t[2] or 0),
+    default=(None, None, None),
+)
+
+fast = max(
+    ((k, compute_trend_diagnostics(get_gateway_metric_trend(primary_fips, k) or pd.DataFrame()).slope_10yr) for k in core),
+    key=lambda t: abs(t[1] or 0),
+    default=(None, None),
+)
+
+st.markdown("## Story Leads for Journalists")
+
+st.markdown(
+    f"- **Extreme outlier:** {catalog[zmax[0]]['metric_label']} (z = {zmax[1]:+.2f})"
+    if zmax[0] and zmax[1] is not None
+    else "- Extreme outlier: not available"
+)
+
+st.markdown(
+    f"- **Strongest cross-city relationship:** {catalog[best[0]]['metric_label']} vs {catalog[best[1]]['metric_label']} (r = {best[2]:+.2f})"
+    if best[0] and best[2] is not None
+    else "- Strongest relationship: not available"
+)
+
+st.markdown(
+    f"- **Fastest changing trend:** {catalog[fast[0]]['metric_label']} (≈ {fast[1]:+.3g}/year)"
+    if fast[0] and fast[1] is not None
+    else "- Fastest trend: not available"
+)
+
+st.caption(
+    "Automated investigative signals generated from cross-city comparisons and time trends. These are leads for reporting, not causal conclusions."
+)
+
+st.sidebar.markdown("### AI Dashboard Assistant")
+
+agent_question = st.sidebar.text_input(
+    "Ask the dashboard",
+    placeholder="e.g. Compare poverty across gateway cities"
+)
+
+if st.sidebar.button("Ask Assistant"):
+
+    with st.spinner("Agent reasoning..."):
+
+        action = run_dashboard_agent(agent_question)
+
+        execute_agent_action(action)
+
+        st.session_state["agent_messages"].append(
+            {"user": agent_question, "agent": action}
+        )
+
+        st.rerun()
+        
+# ==================================================
 # TABS (consistent; no extra page systems)
 # ==================================================
 tabs = ["Map", "Investigative Themes", "Compare Metrics", "Origins (B05006)", "Methodology"]
 
+tab_index = tabs.index(st.session_state["active_tab"])
+
 tab_objs = st.tabs(tabs)
+
+if tab_index:
+    st.session_state["_active_tab"] = tab_index
+    
 tab_map = tab_objs[0]
 tab_story = tab_objs[1]
 tab_compare = tab_objs[2]
@@ -1086,6 +1242,25 @@ with tab_story:
                         fig_sc.update_layout(template="plotly_white", height=520)
                         st.plotly_chart(fig_sc, use_container_width=True)
 
+                        # Agent explanation
+                        if st.session_state.get("agent_explain"):
+                            st.info(
+                                """
+                        This chart compares the selected metrics across Massachusetts Gateway Cities.
+
+                        Each point represents one city. The regression line shows the overall cross-city
+                        relationship between the two indicators.
+
+                        Cities above the line have **higher-than-expected values** given the relationship,
+                        while cities below the line perform **lower than expected**.
+
+                        Large deviations from the line are potential **investigative outliers** and may
+                        reflect local housing markets, demographic composition, or economic policy differences.
+                        """
+                            )
+
+                            st.session_state["agent_explain"] = False
+    
                         # -------------------------------
                         # Dynamic caption + interpretation
                         # -------------------------------
@@ -1283,6 +1458,24 @@ with tab_compare:
                 fig_sc.update_layout(template="plotly_white", height=560)
                 st.plotly_chart(fig_sc, use_container_width=True)
 
+                # Agent explanation
+                if st.session_state.get("agent_explain"):
+                    st.info(
+                        """
+                This scatter plot compares two indicators across Gateway Cities.
+
+                Each point represents a municipality in the selected year.
+
+                The regression line shows the average relationship across cities.
+                Cities that sit far above or below the line are **statistical outliers**.
+
+                These outliers often indicate **local structural differences** such as
+                housing supply, migration patterns, labor markets, or demographic change.
+                """
+                    )
+
+                    st.session_state["agent_explain"] = False
+    
                 # -------------------------------
                 # Dynamic caption + interpretation
                 # -------------------------------
