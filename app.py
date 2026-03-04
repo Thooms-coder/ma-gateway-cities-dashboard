@@ -1937,6 +1937,30 @@ Return JSON only.
             return json.loads(raw)
 
         # ==================================================
+        # Smart chart selection
+        # ==================================================
+
+        def choose_chart_type(df, x, y, requested):
+
+            # if AI explicitly requested a type, respect it
+            if requested in ["bar", "scatter", "line", "pie"]:
+                return requested
+
+            # two numeric columns → scatter
+            if pd.api.types.is_numeric_dtype(df[x]) and pd.api.types.is_numeric_dtype(df[y]):
+                return "scatter"
+
+            # time variable → line
+            if "year" in df.columns or "date" in df.columns:
+                return "line"
+
+            # categorical vs numeric → bar
+            if pd.api.types.is_numeric_dtype(df[y]):
+                return "bar"
+
+            return "bar"
+
+        # ==================================================
         # USER INPUT
         # ==================================================
 
@@ -1995,11 +2019,25 @@ Return JSON only.
                     x_label = query.get("x_label", x)
                     y_label = query.get("y_label", y)
 
-                    chart_type = query.get("chart_type", "bar")
+                    requested_chart = query.get("chart_type")
+                    chart_type = choose_chart_type(df, x, y, requested_chart)
 
                     df_sorted = (
                         df.dropna(subset=[y])
                         .sort_values(by=y, ascending=False)
+                    )
+
+                    # Gateway context statistics
+                    gateway_mean = df[y].mean()
+                    gateway_median = df[y].median()
+
+                    st.info(
+                    f"""
+                    Gateway City Context
+
+                    Average: **{gateway_mean:,.2f}**  
+                    Median: **{gateway_median:,.2f}**
+                    """
                     )
 
                     selected_city = st.session_state.get("selected_city", "")
@@ -2016,10 +2054,13 @@ Return JSON only.
                             x=y,
                             y=x,
                             orientation="h",
-                            color="selected",
-                            color_discrete_map={True: "#4A86C5", False: "#CBD5E1"},
                             title=title,
                             labels={y: y_label, x: x_label},
+                        )
+
+                        fig.update_layout(
+                            template="plotly_white",
+                            yaxis=dict(autorange="reversed")
                         )
 
                     elif chart_type == "scatter":
@@ -2028,9 +2069,22 @@ Return JSON only.
                             df_sorted,
                             x=x,
                             y=y,
+                            hover_name="NAME",
                             title=title,
-                            labels={y: y_label, x: x_label}
+                            labels={y: y_label, x: x_label},
                         )
+
+                        # add regression line
+                        fig.update_traces(marker=dict(size=9))
+
+                        if len(df_sorted) > 3:
+                            m, b = np.polyfit(df_sorted[x], df_sorted[y], 1)
+                            xx = np.linspace(df_sorted[x].min(), df_sorted[x].max(), 50)
+                            yy = m * xx + b
+
+                            fig.add_trace(
+                                go.Scatter(x=xx, y=yy, mode="lines", name="Trend")
+                            )
 
                     elif chart_type == "pie":
 
