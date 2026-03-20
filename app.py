@@ -2267,6 +2267,23 @@ Example (relationship):
 Return JSON only.
 """.strip()
 
+        def split_variables_by_dataset(variables):
+            groups = {
+                "acs/acs5": [],
+                "acs/acs5/subject": [],
+                "acs/acs5/profile": []
+            }
+
+            for v in variables:
+                if v.startswith("S"):
+                    groups["acs/acs5/subject"].append(v)
+                elif v.startswith("DP"):
+                    groups["acs/acs5/profile"].append(v)
+                else:
+                    groups["acs/acs5"].append(v)
+
+            return {k: v for k, v in groups.items() if v}
+
         # ==================================================
         # Census fetch (robust ACS handling)
         # ==================================================
@@ -2275,83 +2292,69 @@ Return JSON only.
 
             import requests
             import pandas as pd
+            from functools import reduce
 
-            # ------------------------------------------------
-            # Determine dataset based on variable prefix
-            # ------------------------------------------------
-            def detect_dataset(var_list):
+            groups = split_variables_by_dataset(variables)
 
-                if any(v.startswith("S") for v in var_list):
-                    return "acs/acs5/subject"
-
-                if any(v.startswith("DP") for v in var_list):
-                    return "acs/acs5/profile"
-
-                return "acs/acs5"
-
-            dataset = detect_dataset(variables)
-
-            # ------------------------------------------------
-            # Prepare parameters
-            # ------------------------------------------------
-            get_cols = ",".join(variables) + ",NAME"
-            params = {"get": get_cols}
-
-            for part in geo.split("&"):
-                part = part.strip()
-
-                if part.startswith("in="):
-                    params["in"] = part[3:]
-                else:
-                    params["for"] = part.replace("for=", "")
+            all_dfs = []
 
             census_key = st.secrets.get("CENSUS_API_KEY")
 
-            if census_key:
-                params["key"] = census_key
+            for dataset, vars_group in groups.items():
+
+                get_cols = ",".join(vars_group) + ",NAME"
+                params = {"get": get_cols}
+
+                for part in geo.split("&"):
+                    part = part.strip()
+                    if part.startswith("in="):
+                        params["in"] = part[3:]
+                    else:
+                        params["for"] = part.replace("for=", "")
+
+                if census_key:
+                    params["key"] = census_key
+
+                base_url = f"https://api.census.gov/data/{year}/{dataset}"
+
+                r = requests.get(base_url, params=params, timeout=20)
+                r.raise_for_status()
+
+                data = r.json()
+
+                if not data or len(data) < 2:
+                    raise ValueError(f"No data returned for {dataset} ({vars_group})")
+
+                df = pd.DataFrame(data[1:], columns=data[0])
+
+                # convert numeric columns
+                for v in vars_group:
+                    df[v] = pd.to_numeric(df[v], errors="coerce")
+
+                all_dfs.append(df)
 
             # ------------------------------------------------
-            # Try requested year + fallback years
+            # MERGE DATASETS (CRITICAL FIX)
             # ------------------------------------------------
-            years_to_try = [year, year-1, year-2, year-3]
+            def merge_keys(df1, df2):
+                return [c for c in ["NAME", "state", "place", "county"] if c in df1.columns and c in df2.columns]
 
-            last_error = None
+            df_final = all_dfs[0]
 
-            for y in years_to_try:
+            for df in all_dfs[1:]:
+                keys = merge_keys(df_final, df)
+                df_final = pd.merge(df_final, df, on=keys, how="outer")
+                
+            df_final["NAME"] = df_final["NAME"].str.replace(", Massachusetts", "", regex=False)
 
-                base_url = f"https://api.census.gov/data/{y}/{dataset}"
-
-                try:
-
-                    r = requests.get(base_url, params=params, timeout=20)
-
-                    r.raise_for_status()
-
-                    data = r.json()
-
-                    df = pd.DataFrame(data[1:], columns=data[0])
-
-                    for v in variables:
-                        df[v] = pd.to_numeric(df[v], errors="coerce")
-
-                    df["NAME"] = df["NAME"].str.replace(", Massachusetts", "", regex=False)
-
-                    df["acs_year"] = y
-
-                    return df
-
-                except Exception as e:
-                    last_error = e
-                    continue
-
-            raise RuntimeError(f"ACS API failed for all fallback years: {last_error}")
+            return df_final
 
         def fetch_with_fallback_years(variables: List[str], geo: str, year: int) -> Tuple[Optional[pd.DataFrame], Optional[int], Optional[str]]:
             """
             If year fails (API/data availability), try year-1 and year-2.
             Returns (df, used_year, error_msg)
             """
-            for y in [year, year - 1, year - 2]:
+            for y in [year, year - 1]:
                 try:
                     df = fetch_census_data(variables, geo, int(y))
                     return df, int(y), None
