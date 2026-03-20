@@ -883,29 +883,6 @@ st.markdown(
 selected_year = int(st.session_state["selected_year"])
 primary_city = st.session_state["selected_city"]
 primary_fips = str(cities_all.loc[cities_all["place_name"] == primary_city, "place_fips"].iloc[0])
-
-# ==================================================
-# DASHBOARD AGENT CHAT (Homepage Copilot)
-# ==================================================
-
-for msg in st.session_state["agent_messages"]:
-    if msg["role"] != "system":
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-
-if prompt := st.chat_input("E.g., What is the poverty trend in Lynn?"):
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    with st.chat_message("assistant"):
-        with st.spinner("Crunching numbers..."):
-            answer = run_dashboard_agent(prompt)
-            st.markdown(answer)
-
-    st.session_state["agent_messages"].append({"role": "user", "content": prompt})
-    st.session_state["agent_messages"].append({"role": "assistant", "content": answer})
-
-    st.rerun()
         
 # ==================================================
 # STORY LEADS (AI INVESTIGATIVE SIGNALS)
