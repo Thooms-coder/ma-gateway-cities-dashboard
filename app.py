@@ -439,7 +439,12 @@ def run_dashboard_agent(user_message: str):
             elif function_name == "get_metric_data":
                 # Uses your existing cache wrappers!
                 snap = cached_gateway_metric_snapshot(args["city_fips"], args["metric_key"], st.session_state["selected_year"])
-                val = safe_float(snap.get("value", pd.Series([None])).iloc[0]) if snap is not None else "Unknown"
+                
+                if snap is not None and not snap.empty and "value" in snap.columns:
+                    val = safe_float(snap["value"].iloc[0])
+                else:
+                    val = "Unknown"
+                    
                 tool_result = f"The value for {args['metric_key']} is {val}."
 
             elif function_name == "compare_cities":
